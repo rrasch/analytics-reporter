@@ -3,6 +3,7 @@
 # Author: rasan@nyu.edu
 
 require 'chronic'
+require 'csv'
 require 'google/apis/analytics_v3'
 require 'googleauth'
 require 'googleauth/stores/file_token_store'
@@ -12,8 +13,9 @@ require 'optparse'
 require 'thor'
 
 config = {
-  :start => Chronic.parse('last week').strftime('%Y-%m-%d'),
-  :end   => Time.now.strftime('%Y-%m-%d'),
+  :start   => Chronic.parse('last week').strftime('%Y-%m-%d'),
+  :end     => Time.now.strftime('%Y-%m-%d'),
+  :outfile => 'out.csv',
 }
 
 # puts config[:start]
@@ -24,11 +26,15 @@ OptionParser.new do |opts|
   opts.banner = "Usage: #{$0} [options]"
 
   opts.on('-s', '--start START_DATE', 'Start Date') do |s|
-    config[:start] = m
+    config[:start] = s
   end
 
   opts.on('-e', '--end END_DATE', 'End Date') do |e|
-    config[:end] = t
+    config[:end] = e
+  end
+
+  opts.on('-o', '--outfile OUTFILE', 'Output CSV File') do |o|
+    config[:outfile] = o
   end
 
   opts.on('-h', '--help', 'Print help message') do
@@ -81,7 +87,10 @@ service = Google::Apis::AnalyticsV3::AnalyticsService.new
 service.client_options.application_name = APPLICATION_NAME
 service.authorization = authorize
 
+csv = CSV.open(config[:outfile], 'w')
+
 service.list_profiles('~all', '~all').items.each do |profile|
+  puts profile.name
   dimensions = %w(ga:date)
   metrics = %w(ga:sessions ga:users ga:newUsers ga:percentNewSessions
                ga:sessionDuration ga:avgSessionDuration)
@@ -89,13 +98,17 @@ service.list_profiles('~all', '~all').items.each do |profile|
   result = service.get_ga_data("ga:#{profile.id}",
                                  config[:start],
                                  config[:end],
-                                 metrics.join(','),
-                                 dimensions: dimensions.join(','),
-                                 sort: sort.join(','))
+                                 metrics.join(','))
+                                 #dimensions: dimensions.join(','),
+                                 #sort: sort.join(','))
 
   data = []
   data.push(result.column_headers.map { |h| h.name })
   data.push(*result.rows)
-  Thor.new.print_table(data)
+  puts "FOO", result.inspect
+  if result.total_results > 0
+    csv << result.rows[0]
+    Thor.new.print_table(data)
+  end
 end
 

@@ -8,6 +8,37 @@ require 'googleauth'
 require 'googleauth/stores/file_token_store'
 require 'fileutils'
 require 'mail'
+require 'optparse'
+require 'thor'
+
+config = {
+  :start => Chronic.parse('last week').strftime('%Y-%m-%d'),
+  :end   => Time.now.strftime('%Y-%m-%d'),
+}
+
+# puts config[:start]
+# puts config[:end]
+
+OptionParser.new do |opts|
+
+  opts.banner = "Usage: #{$0} [options]"
+
+  opts.on('-s', '--start START_DATE', 'Start Date') do |s|
+    config[:start] = m
+  end
+
+  opts.on('-e', '--end END_DATE', 'End Date') do |e|
+    config[:end] = t
+  end
+
+  opts.on('-h', '--help', 'Print help message') do
+    puts opts
+    exit
+  end
+
+end.parse!
+
+
 
 OOB_URI = 'urn:ietf:wg:oauth:2.0:oob'
 APPLICATION_NAME = 'Analytics Reporter'
@@ -49,4 +80,22 @@ end
 service = Google::Apis::AnalyticsV3::AnalyticsService.new
 service.client_options.application_name = APPLICATION_NAME
 service.authorization = authorize
+
+service.list_profiles('~all', '~all').items.each do |profile|
+  dimensions = %w(ga:date)
+  metrics = %w(ga:sessions ga:users ga:newUsers ga:percentNewSessions
+               ga:sessionDuration ga:avgSessionDuration)
+  sort = %w(ga:date)
+  result = service.get_ga_data("ga:#{profile.id}",
+                                 config[:start],
+                                 config[:end],
+                                 metrics.join(','),
+                                 dimensions: dimensions.join(','),
+                                 sort: sort.join(','))
+
+  data = []
+  data.push(result.column_headers.map { |h| h.name })
+  data.push(*result.rows)
+  Thor.new.print_table(data)
+end
 

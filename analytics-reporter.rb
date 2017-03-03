@@ -11,6 +11,7 @@ require 'fileutils'
 require 'mail'
 require 'optparse'
 require 'thor'
+require 'yaml'
 
 config = {
   :start   => Chronic.parse('last week').strftime('%Y-%m-%d'),
@@ -18,22 +19,23 @@ config = {
   :outfile => 'out.csv',
 }
 
-# puts config[:start]
-# puts config[:end]
+yml = YAML.load_file('config.yaml')
+
+config.merge!(yml)
 
 OptionParser.new do |opts|
 
   opts.banner = "Usage: #{$0} [options]"
 
-  opts.on('-s', '--start START_DATE', 'Start Date') do |s|
+  opts.on('-s', '--start START_DATE', 'Start date for query') do |s|
     config[:start] = s
   end
 
-  opts.on('-e', '--end END_DATE', 'End Date') do |e|
+  opts.on('-e', '--end END_DATE', 'End date for query') do |e|
     config[:end] = e
   end
 
-  opts.on('-o', '--outfile OUTFILE', 'Output CSV File') do |o|
+  opts.on('-o', '--outfile OUTFILE', 'Output CSV file') do |o|
     config[:outfile] = o
   end
 
@@ -43,8 +45,6 @@ OptionParser.new do |opts|
   end
 
 end.parse!
-
-
 
 OOB_URI = 'urn:ietf:wg:oauth:2.0:oob'
 APPLICATION_NAME = 'Analytics Reporter'
@@ -90,10 +90,15 @@ service.authorization = authorize
 csv = CSV.open(config[:outfile], 'w')
 
 service.list_profiles('~all', '~all').items.each do |profile|
-  puts profile.name
+  view_name = profile.name.dup
+  if view_name.sub!(' (master view)', '').nil?
+    #puts "Ignoring #{view_name}"
+    next
+  end
+  puts "Querying master view: #{view_name}"
+  puts profile.inspect
   dimensions = %w(ga:date)
-  metrics = %w(ga:sessions ga:users ga:newUsers ga:percentNewSessions
-               ga:sessionDuration ga:avgSessionDuration)
+  metrics = %w(ga:sessions ga:users ga:newUsers ga:pageviews)
   sort = %w(ga:date)
   result = service.get_ga_data("ga:#{profile.id}",
                                  config[:start],
@@ -106,9 +111,23 @@ service.list_profiles('~all', '~all').items.each do |profile|
   data.push(result.column_headers.map { |h| h.name })
   data.push(*result.rows)
   puts "FOO", result.inspect
-  if result.total_results > 0
-    csv << result.rows[0]
-    Thor.new.print_table(data)
-  end
+  #if result.total_results > 0
+  csv << result.rows[0]
+  Thor.new.print_table(data)
+  #end
+  break
 end
 
+desc = "Analytics Report for #{config[:start]} to #{config[:end]}"
+
+mail = Mail.new do
+  from     config[:mailfrom]
+  to       config[:mailto]
+  subject  desc
+  body     desc
+  add_file config[:outfile]
+end
+
+mail.delivery_method :sendmail
+
+mail.deliver!

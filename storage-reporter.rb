@@ -10,6 +10,20 @@ report_file = "in.txt"
 
 config = YAML.load_file('config.yaml')
 
+repo = config[:storage_repo]
+
+install_dir = "#{Dir.home}/reports"
+
+if Dir.exist?(install_dir)
+  Dir.chdir(install_dir) do
+    system('git pull')
+  end
+else
+  system("git clone '#{repo}' #{install_dir}")
+end
+
+exit
+
 def parse_report(report_file)
   totals = Hash.new
   File.open(report_file).each do |line|

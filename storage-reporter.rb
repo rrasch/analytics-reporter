@@ -4,9 +4,11 @@ require 'csv'
 require 'fiscali'
 require 'json'
 require 'mechanize'
+require 'yaml'
 
 report_file = "in.txt"
 
+config = YAML.load_file('config.yaml')
 
 def parse_report(report_file)
   totals = Hash.new
@@ -41,10 +43,11 @@ end
 
 def get_rstar_name(file, agent)
   url = File.open(file).first
+  puts url
   page = agent.get(url)
   rstar_param = JSON.parse(page.content)
-  return rstar['name']
-  exit
+  puts rstar_param
+  return rstar_param['name']
 end
 
 
@@ -71,13 +74,18 @@ csv << ['Partner', 'Collection', 'Title',
 rstar_base = "/content/prod/rstar/content"
 
 agent = Mechanize.new
-agent.auth(confg[:rsbe_user], config[:rsbe_pass])
+agent.add_auth(config[:rsbe_domain], config[:rsbe_user], config[:rsbe_pass])
 
 totals.each do |key, val|
-  partner_file = "#{rstar_base}/#{val[:provider]}/partner_file"
-  collection_file = "#{rstar_base}/#{val[:provider]}/#{val[:collection]}/collection_file"
-  val[:partner_name] = get_rstar_name(partner_file, agent)
-  val[:collection_name] = get_rstar_name(collection_file, agent)
+  partner_file = "#{rstar_base}/#{val[:provider]}/partner_url"
+  collection_file = "#{rstar_base}/#{val[:provider]}/#{val[:collection]}/collection_url"
+  if File.exist?(partner_file)
+    val[:partner_name] = get_rstar_name(partner_file, agent)
+  end
+  if File.exist?(collection_file)
+    val[:collection_name] = get_rstar_name(collection_file, agent)
+  end
+  puts val
 end
 
 totals.each do |key, val|

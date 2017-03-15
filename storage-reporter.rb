@@ -1,28 +1,28 @@
 #!/usr/bin/env ruby
 
+require 'chronic'
 require 'csv'
 require 'fiscali'
 require 'json'
 require 'mechanize'
 require 'yaml'
 
-report_file = "in.txt"
 
 config = YAML.load_file('config.yaml')
 
 repo = config[:storage_repo]
 
-install_dir = "#{Dir.home}/reports"
+install_dir = "#{Dir.home}/storage-reports"
 
-if Dir.exist?(install_dir)
-  Dir.chdir(install_dir) do
-    system('git pull')
+if false
+  if Dir.exist?(install_dir)
+    Dir.chdir(install_dir) do
+      system('git pull')
+    end
+  else
+    system("git clone '#{repo}' #{install_dir}")
   end
-else
-  system("git clone '#{repo}' #{install_dir}")
 end
-
-exit
 
 def parse_report(report_file)
   totals = Hash.new
@@ -73,6 +73,27 @@ now = Date.today
 Date.fiscal_zone = :us
 Date.fy_start_month = 9
 
+config[:start] =  now.previous_financial_quarter
+config[:end] = config[:start].end_of_financial_quarter
+
+config[:prev_start] = config[:start].previous_financial_quarter
+config[:prev_end] = config[:prev_start].end_of_financial_quarter
+
+puts config[:prev_start]
+puts config[:prev_end]
+puts config[:start]
+puts config[:end]
+
+def get_report_file(end_qtr, report_dir)
+  report_date = Chronic.parse('last sunday', :now => end_qtr.next_financial_quarter)
+  date_expr = report_date.strftime('%Y%m%d')
+  Dir.glob("#{report_dir}/data/#{date_expr}*.txt").first
+end
+
+prev_report_file = get_report_file(config[:prev_end], install_dir)
+report_file = get_report_file(config[:end], install_dir)
+
+prev_totals = parse_report(prev_report_file)
 totals = parse_report(report_file)
 
 csv = CSV.open('stor.csv', 'w')

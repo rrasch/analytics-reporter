@@ -4,6 +4,7 @@ require 'chronic'
 require 'csv'
 require 'fiscali'
 require 'json'
+require 'mail'
 require 'mechanize'
 require 'yaml'
 
@@ -30,18 +31,18 @@ def parse_report(report_file)
     if line =~ /DATESTAMP/
       next
     end
-    puts line
+    #puts line
     path, oxum = line.split(':Arbitrary-Oxum: ')
-    puts path
-    puts oxum
+    #puts path
+    #puts oxum
     provider, collection = path.split('/').slice(1,2)
-    puts provider
-    puts collection
+    #puts provider
+    #puts collection
     size, num_files = oxum.split('.')
-    puts size
-    puts num_files
+    #puts size
+    #puts num_files
     key = "#{provider}/#{collection}".to_sym
-    puts "key #{key}"
+    #puts "key #{key}"
     if !totals.key?(key)
       totals[key] = {:size => 0,
                      :num_files => 0,
@@ -92,6 +93,8 @@ end
 
 prev_report_file = get_report_file(config[:prev_end], install_dir)
 report_file = get_report_file(config[:end], install_dir)
+puts prev_report_file
+puts report_file
 
 prev_totals = parse_report(prev_report_file)
 totals = parse_report(report_file)
@@ -120,16 +123,44 @@ totals.each do |key, val|
   if File.exist?(collection_file)
     val[:collection_name] = get_rstar_name(collection_file, agent)
   end
-  puts val
 end
 
-totals.each do |key, val|
-  puts val
+def calc_change(t1, t2, k1, k2)
+  if t1.key?(k1) && t2.key?(k1) && t1[k1][k2] > 0
+    val1 = t1[k1][k2].to_i
+    val2 = t2[k1][k2].to_i
+    #puts "val1=#{val1} val2=#{val2}"
+    sprintf('%.2f%', ((val2 - val1) / val1) * 100)
+  else
+    return 'N/A'
+  end
+end
+
+
+totals.sort_by { |k,v| v[:size] }.each do |key, val|
+  #puts val
   data = []
   data.push(val[:provider])
   data.push(val[:collection])
+  data.push(val[:collection_name])
   data.push(val[:num_files])
+  data.push(calc_change(prev_totals, totals, key, :num_files))
   data.push(val[:size])
+  data.push(calc_change(prev_totals, totals, key, :size))
   csv << data
 end
 
+
+desc = "Storage Report for #{config[:start]} to #{config[:end]}"
+
+mail = Mail.new do
+  from     config[:mailfrom]
+  to       config[:mailto]
+  subject  desc
+  body     desc
+  add_file 'stor.csv'
+end
+
+mail.delivery_method :sendmail
+
+mail.deliver!

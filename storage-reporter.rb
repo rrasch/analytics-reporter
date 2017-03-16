@@ -117,12 +117,16 @@ agent.add_auth(config[:rsbe_domain], config[:rsbe_user], config[:rsbe_pass])
 totals.each do |key, val|
   partner_file = "#{rstar_base}/#{val[:provider]}/partner_url"
   collection_file = "#{rstar_base}/#{val[:provider]}/#{val[:collection]}/collection_url"
+  title = ""
   if File.exist?(partner_file)
     val[:partner_name] = get_rstar_name(partner_file, agent)
+    title << val[:partner_name]
   end
   if File.exist?(collection_file)
     val[:collection_name] = get_rstar_name(collection_file, agent)
+    title << val[:collection_name]
   end
+  val[:title] = title
 end
 
 def calc_change(t1, t2, k1, k2)
@@ -143,7 +147,7 @@ totals.sort_by { |k,v| v[:size] }.each do |key, val|
   data = []
   data.push(val[:provider])
   data.push(val[:collection])
-  data.push(val[:collection_name])
+  data.push(val[:title])
   data.push(val[:num_files])
   data.push(calc_change(prev_totals, totals, key, :num_files))
   data.push(sprintf('%.1f GB', val[:size].to_i / gigabyte))

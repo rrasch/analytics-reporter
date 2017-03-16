@@ -109,7 +109,7 @@ csv << ['Partner', 'Collection', 'Title',
         'Size in GB', 'Chg from prev qtr',
        ]
 
-rstar_base = "/content/prod/rstar/content"
+rstar_base = config[:rstar_dir]
 
 agent = Mechanize.new
 agent.add_auth(config[:rsbe_domain], config[:rsbe_user], config[:rsbe_pass])
@@ -136,6 +136,7 @@ def calc_change(t1, t2, k1, k2)
   end
 end
 
+gigabyte = (10 ** 3) ** 3
 
 totals.sort_by { |k,v| v[:size] }.each do |key, val|
   #puts val
@@ -145,13 +146,13 @@ totals.sort_by { |k,v| v[:size] }.each do |key, val|
   data.push(val[:collection_name])
   data.push(val[:num_files])
   data.push(calc_change(prev_totals, totals, key, :num_files))
-  data.push(val[:size])
+  data.push(sprintf('%.1f GB', val[:size].to_i / gigabyte))
   data.push(calc_change(prev_totals, totals, key, :size))
   csv << data
 end
 
 
-desc = "Storage Report for #{config[:start]} to #{config[:end]}"
+desc = "Storage Report for #{now.financial_quarter}"
 
 mail = Mail.new do
   from     config[:mailfrom]

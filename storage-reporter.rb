@@ -29,10 +29,14 @@ end
 
 def parse_report(report_file)
   totals = Hash.new
+  totals[:all] = {
+                   :size       => 0,
+                   :num_files  => 0,
+                   :provider   => 'all',
+                   :collection => 'all'
+                 }
   File.open(report_file).each do |line|
-    if line =~ /DATESTAMP/
-      next
-    end
+    next if line =~ /DATESTAMP/
     #puts line
     path, oxum = line.split(':Arbitrary-Oxum: ')
     #puts path
@@ -46,13 +50,17 @@ def parse_report(report_file)
     key = "#{provider}/#{collection}".to_sym
     #puts "key #{key}"
     if !totals.key?(key)
-      totals[key] = {:size => 0,
-                     :num_files => 0,
-                     :provider => provider,
-                     :collection => collection}
+      totals[key] = {
+                      :size       => 0,
+                      :num_files  => 0,
+                      :provider   => provider,
+                      :collection => collection
+                    }
     end
     totals[key][:size] += size.to_i
     totals[key][:num_files] += num_files.to_i
+    totals[:all][:size] += size.to_i
+    totals[:all][:num_files] += num_files.to_i
   end
   return totals
 end
@@ -116,26 +124,10 @@ rstar_base = config[:rstar_dir]
 agent = Mechanize.new
 agent.add_auth(config[:rsbe_domain], config[:rsbe_user], config[:rsbe_pass])
 
-totals.each do |key, val|
-  partner_file = "#{rstar_base}/#{val[:provider]}/partner_url"
-  collection_file = "#{rstar_base}/#{val[:provider]}/#{val[:collection]}/collection_url"
-  title = ""
-  if File.exist?(partner_file)
-    val[:partner_name] = get_rstar_name(partner_file, agent)
-    title << val[:partner_name]
-  end
-  if File.exist?(collection_file)
-    val[:collection_name] = get_rstar_name(collection_file, agent)
-    title << ' - ' unless title.empty?
-    title << val[:collection_name]
-  end
-  val[:title] = title
-end
-
 def calc_change(t1, t2, k1, k2)
   if t1.key?(k1) && t2.key?(k1) && t1[k1][k2] > 0
-    val1 = t1[k1][k2].to_i
-    val2 = t2[k1][k2].to_i
+    val1 = t1[k1][k2].to_f
+    val2 = t2[k1][k2].to_f
     #puts "val1=#{val1} val2=#{val2}"
     sprintf('%.2f%', ((val2 - val1) / val1) * 100)
   else
@@ -146,6 +138,24 @@ end
 gigabyte = (10 ** 3) ** 3
 
 totals.sort_by { |k,v| v[:size] }.reverse.each do |key, val|
+
+  unless key == :all
+    partner_url_file    =  "#{rstar_base}/#{val[:provider]}/partner_url"
+    collection_url_file =  "#{rstar_base}/#{val[:provider]}/"
+    collection_url_file << "#{val[:collection]}/collection_url"
+    title = ""
+    if File.exist?(partner_url_file)
+      val[:partner_name] = get_rstar_name(partner_url_file, agent)
+      title << val[:partner_name]
+    end
+    if File.exist?(collection_url_file)
+      val[:collection_name] = get_rstar_name(collection_url_file, agent)
+      title << ' - ' unless title.empty?
+      title << val[:collection_name]
+    end
+    val[:title] = title
+  end
+
   #puts val
   data = []
   data.push(val[:provider])
@@ -153,7 +163,7 @@ totals.sort_by { |k,v| v[:size] }.reverse.each do |key, val|
   data.push(val[:title])
   data.push(val[:num_files])
   data.push(calc_change(prev_totals, totals, key, :num_files))
-  data.push(sprintf('%.1f GB', val[:size].to_i / gigabyte))
+  data.push(sprintf('%.2f GB', val[:size].to_f / gigabyte))
   data.push(calc_change(prev_totals, totals, key, :size))
   csv << data
 end

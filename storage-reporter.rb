@@ -6,8 +6,10 @@ require 'fiscali'
 require 'json'
 require 'mail'
 require 'mechanize'
+require 'tempfile'
 require 'yaml'
 
+tmp = Tempfile.new(['storage-reports', '.csv'])
 
 config = YAML.load_file('config.yaml')
 
@@ -15,7 +17,7 @@ repo = config[:storage_repo]
 
 install_dir = "#{Dir.home}/storage-reports"
 
-if false
+if config[:use_storage_repo]
   if Dir.exist?(install_dir)
     Dir.chdir(install_dir) do
       system('git pull')
@@ -99,7 +101,7 @@ puts report_file
 prev_totals = parse_report(prev_report_file)
 totals = parse_report(report_file)
 
-csv = CSV.open('stor.csv', 'w')
+csv = CSV.open(tmp.path, 'w')
 
 csv << ['DLTS collections quarterly report - storage']
 csv << ['Year:', "FY#{now.financial_year}"]
@@ -124,6 +126,7 @@ totals.each do |key, val|
   end
   if File.exist?(collection_file)
     val[:collection_name] = get_rstar_name(collection_file, agent)
+    title << ' - ' unless title.empty?
     title << val[:collection_name]
   end
   val[:title] = title
@@ -142,7 +145,7 @@ end
 
 gigabyte = (10 ** 3) ** 3
 
-totals.sort_by { |k,v| v[:size] }.each do |key, val|
+totals.sort_by { |k,v| v[:size] }.reverse.each do |key, val|
   #puts val
   data = []
   data.push(val[:provider])
@@ -155,17 +158,24 @@ totals.sort_by { |k,v| v[:size] }.each do |key, val|
   csv << data
 end
 
+csv.close
 
 desc = "Storage Report for #{now.financial_quarter}"
+
+outfile = "storage_report_#{now.financial_quarter}.csv"
+outfile.gsub!(' ', '_')
 
 mail = Mail.new do
   from     config[:mailfrom]
   to       config[:mailto]
   subject  desc
   body     desc
-  add_file 'stor.csv'
+  add_file :filename => outfile, :content => tmp.read
 end
 
 mail.delivery_method :sendmail
 
 mail.deliver!
+
+tmp.close
+

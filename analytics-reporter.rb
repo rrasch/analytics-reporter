@@ -11,6 +11,7 @@ require 'fileutils'
 require 'fiscali'
 require 'mail'
 require 'optparse'
+require 'pp'
 require 'thor'
 require 'yaml'
 
@@ -122,9 +123,15 @@ end
 # end
 
 def calc_percent(r1, r2, col_num)
-  val1 = r1.rows[0][col_num].to_f
-  val2 = r2.rows[0][col_num].to_f
-  sprintf('%.2f', ((val2 - val1) / val1) * 100)
+  val1 = r1[col_num].to_f
+  val2 = r2[col_num].to_f
+  #puts "val1=#{val1}"
+  #puts "val2=#{val2}"
+  if !val1.zero?
+    sprintf('%.2f%', ((val2 - val1) / val1) * 100)
+  else
+    'N/A'
+  end
 end
 
 csv << ['DLTS collections quarterly report']
@@ -140,6 +147,12 @@ csv << ['Account',
 metrics = %w(ga:sessions ga:users ga:pageviews)
 metrics_str = metrics.join(',')
 
+all_csv_rows = []
+all_csv_rows.push(Array.new)
+
+prev_totals = Array.new(3, 0)
+totals = Array.new(3, 0)
+
 service.list_accounts.items.each do |account|
 
   puts account.name
@@ -151,7 +164,7 @@ service.list_accounts.items.each do |account|
       next
     end
     puts "Querying master view: #{view_name}"
-    puts profile.inspect
+    #puts profile.inspect
     prev_result = service.get_ga_data("ga:#{profile.id}",
                                    fmt_date(config[:prev_start]),
                                    fmt_date(config[:prev_end]),
@@ -161,28 +174,53 @@ service.list_accounts.items.each do |account|
                                    fmt_date(config[:start]),
                                    fmt_date(config[:end]),
                                    metrics_str)
-    puts prev_result.rows.inspect
-    puts result.rows.inspect
-    data = []
-    data.push(account.name)
-    data.push(view_name)
-    (0..2).each do |n|
-      data.push(result.rows[0][n])
-      data.push(calc_percent(prev_result, result, n))
+
+    #puts "prev_result: ", prev_result.inspect
+    #puts "result: ", result.inspect
+
+    if !prev_result.rows.nil?
+      prev_result_row = prev_result.rows[0]
+    else
+      prev_result_row = Array.new(3, '0')
     end
-  
-  #   data.push(result.column_headers.map { |h| h.name })
-  #   data.push(*result.rows)
-  #   puts "FOO", result.inspect
-  #   #if result.total_results > 0
-    csv << data
-    #Thor.new.print_table(data)
-  #   #end
+
+    if !result.rows.nil?
+      result_row = result.rows[0]
+    else
+      result_row = Array.new(3, '0')
+    end
+
+    csv_row = []
+    csv_row.push(account.name)
+    csv_row.push(view_name)
+    (0..2).each do |n|
+      csv_row.push(result_row[n])
+      csv_row.push(calc_percent(prev_result_row, result_row, n))
+      prev_totals[n] += prev_result_row[n].to_i
+      totals[n] += result_row[n].to_i
+    end
+
+    all_csv_rows.push(csv_row)
+
   end
-  
-  break
 
 end
+
+all_csv_rows[0].push('All', 'All')
+(0..2).each do |n|
+  all_csv_rows[0].push(totals[n])
+  all_csv_rows[0].push(calc_percent(prev_totals, totals, n))
+end
+
+# pp all_csv_rows
+
+all_csv_rows.sort_by { |x| x[2].to_i }.reverse.each do |val|
+  csv << val
+end
+
+csv.close
+
+Thor.new.print_table(all_csv_rows)
   
 desc = "Analytics Report for #{config[:start]} to #{config[:end]}"
 

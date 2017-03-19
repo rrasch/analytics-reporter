@@ -12,11 +12,12 @@ require 'fiscali'
 require 'mail'
 require 'optparse'
 require 'pp'
+require 'tempfile'
 require 'thor'
 require 'yaml'
 
 config = {
-  :outfile => 'out.csv',
+  :output_dir => Dir.home,
 }
 
 yml = YAML.load_file('config.yaml')
@@ -31,8 +32,8 @@ OptionParser.new do |opts|
     config[:fiscal_qtr] = f
   end
 
-  opts.on('-o', '--outfile OUTFILE', 'Output CSV file') do |o|
-    config[:outfile] = o
+  opts.on('-o', '--output-dir OUTPUT_DIR', 'Output directory') do |o|
+    config[:output_dir] = o
   end
 
   opts.on('-h', '--help', 'Print help message') do
@@ -116,8 +117,6 @@ service = Google::Apis::AnalyticsV3::AnalyticsService.new
 service.client_options.application_name = APPLICATION_NAME
 service.authorization = authorize
 
-csv = CSV.open(config[:outfile], 'w')
-
 def fmt_date(date)
   date.strftime('%Y-%m-%d')
 end
@@ -139,6 +138,10 @@ def calc_percent(r1, r2, col_num)
     'N/A'
   end
 end
+
+tmp = Tempfile.new(['google-analytics-report', '.csv'])
+
+csv = CSV.open(tmp.path, 'w')
 
 csv << ['DLTS collections quarterly report']
 csv << ['Year:', "FY#{config[:start].financial_year}"]
@@ -240,9 +243,14 @@ mail = Mail.new do
   to       config[:mailto]
   subject  desc
   body     desc
-  add_file :filename => outfile, :content => File.read(config[:outfile])
+  add_file :filename => outfile, :content => tmp.read
 end
 
 mail.delivery_method :sendmail
 
 mail.deliver!
+
+FileUtils.cp(tmp.path, File.join(config[:output_dir], outfile))
+
+tmp.close!
+

@@ -6,8 +6,10 @@ require 'fiscali'
 require 'json'
 require 'mail'
 require 'mechanize'
+require 'optparse'
 require 'tempfile'
 require 'yaml'
+require './config'
 
 
 def parse_report(report_file)
@@ -84,7 +86,7 @@ def calc_change(t1, t2, k1, k2)
 end
 
 
-config = YAML.load_file('config.yaml')
+config = ReportConfig.get_config
 
 install_dir = File.join(Dir.home, "storage-reports")
 
@@ -96,39 +98,6 @@ if config[:use_storage_repo]
   else
     system("git clone '#{config[:storage_repo]}' #{install_dir}")
   end
-end
-
-Date.fiscal_zone = :us
-Date.fy_start_month = 9
-
-now = Date.today
-
-if !config[:fiscal_qtr].nil?
-  if config[:fiscal_qtr] =~ /^Q([1234])\/(\d{4})$/
-    qtr = $1.to_i
-    year = $2.to_i
-    start_of_year = Date.new(year, 9, 1)
-    config[:start] = start_of_year.beginning_of_financial_quarter(qtr)
-  else
-    puts "Quarter must be specified in the form Q[1234]/YYYY, e.g. Q4/2016"
-    exit
-  end
-else
-  config[:start] = now.previous_financial_quarter
-end
-
-config[:end] = config[:start].end_of_financial_quarter
-config[:prev_start] = config[:start].previous_financial_quarter
-config[:prev_end] = config[:prev_start].end_of_financial_quarter
-
-puts config[:prev_start]
-puts config[:prev_end]
-puts config[:start]
-puts config[:end]
-
-if config[:end] >= now
-  puts "Today's date must be after the financial quarter"
-  exit
 end
 
 prev_report_file = get_report_file(config[:prev_end], install_dir)

@@ -232,12 +232,15 @@ desc = "Google Analytics Report for " +
        "#{config[:start].financial_quarter.gsub(' ', '/')} - " +
        "#{config[:start]} to #{config[:end]}"
 
+outfile = "analytics_report_" +
+          "#{config[:start].financial_quarter.gsub(' ', '_')}.csv"
+
 mail = Mail.new do
   from     config[:mailfrom]
   to       config[:mailto]
   subject  desc
   body     desc
-  add_file config[:outfile]
+  add_file :filename => outfile, :content => File.read(config[:outfile])
 end
 
 mail.delivery_method :sendmail

@@ -1,0 +1,10 @@
+:mailfrom:        user@example.com
+:mailto:          user@example.com
+:account_id:      123456789
+:web_property_id: 123456789
+:rsbe_user:       username
+:rsbe_pass:       password
+:rsbe_domain:     https://www.example.com
+:storage_repo:    https://example.com/storage-reports
+:rstar_dir:       /path/to/rstar/content
+

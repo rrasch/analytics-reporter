@@ -9,23 +9,6 @@ require 'mechanize'
 require 'tempfile'
 require 'yaml'
 
-tmp = Tempfile.new(['storage-reports', '.csv'])
-
-config = YAML.load_file('config.yaml')
-
-repo = config[:storage_repo]
-
-install_dir = "#{Dir.home}/storage-reports"
-
-if config[:use_storage_repo]
-  if Dir.exist?(install_dir)
-    Dir.chdir(install_dir) do
-      system('git pull')
-    end
-  else
-    system("git clone '#{repo}' #{install_dir}")
-  end
-end
 
 def parse_report(report_file)
   totals = Hash.new
@@ -80,49 +63,14 @@ def calc_percent(a, b)
   ((b.to_f - a.to_f) / a.to_f) * 100
 end
 
-now = Date.today
-Date.fiscal_zone = :us
-Date.fy_start_month = 9
-
-config[:start] =  now.previous_financial_quarter
-config[:end] = config[:start].end_of_financial_quarter
-
-config[:prev_start] = config[:start].previous_financial_quarter
-config[:prev_end] = config[:prev_start].end_of_financial_quarter
-
-puts config[:prev_start]
-puts config[:prev_end]
-puts config[:start]
-puts config[:end]
 
 def get_report_file(end_qtr, report_dir)
-  report_date = Chronic.parse('last sunday', :now => end_qtr.next_financial_quarter)
+  report_date = Chronic.parse('last sunday',
+                              :now => end_qtr.next_financial_quarter)
   date_expr = report_date.strftime('%Y%m%d')
   Dir.glob("#{report_dir}/data/#{date_expr}*.txt").first
 end
 
-prev_report_file = get_report_file(config[:prev_end], install_dir)
-report_file = get_report_file(config[:end], install_dir)
-puts prev_report_file
-puts report_file
-
-prev_totals = parse_report(prev_report_file)
-totals = parse_report(report_file)
-
-csv = CSV.open(tmp.path, 'w')
-
-csv << ['DLTS collections quarterly report - storage']
-csv << ['Year:', "FY#{now.financial_year}"]
-csv << ['Quarter:', now.financial_quarter.split.first]
-csv << ['Partner', 'Collection', 'Title',
-        'Files', 'Chg from prev qtr',
-        'Size in GB', 'Chg from prev qtr',
-       ]
-
-rstar_base = config[:rstar_dir]
-
-agent = Mechanize.new
-agent.add_auth(config[:rsbe_domain], config[:rsbe_user], config[:rsbe_pass])
 
 def calc_change(t1, t2, k1, k2)
   if t1.key?(k1) && t2.key?(k1) && t1[k1][k2] > 0
@@ -134,6 +82,79 @@ def calc_change(t1, t2, k1, k2)
     return 'N/A'
   end
 end
+
+
+config = YAML.load_file('config.yaml')
+
+install_dir = File.join(Dir.home, "storage-reports")
+
+if config[:use_storage_repo]
+  if Dir.exist?(install_dir)
+    Dir.chdir(install_dir) do
+      system('git pull')
+    end
+  else
+    system("git clone '#{config[:storage_repo]}' #{install_dir}")
+  end
+end
+
+Date.fiscal_zone = :us
+Date.fy_start_month = 9
+
+now = Date.today
+
+if !config[:fiscal_qtr].nil?
+  if config[:fiscal_qtr] =~ /^Q([1234])\/(\d{4})$/
+    qtr = $1.to_i
+    year = $2.to_i
+    start_of_year = Date.new(year, 9, 1)
+    config[:start] = start_of_year.beginning_of_financial_quarter(qtr)
+  else
+    puts "Quarter must be specified in the form Q[1234]/YYYY, e.g. Q4/2016"
+    exit
+  end
+else
+  config[:start] = now.previous_financial_quarter
+end
+
+config[:end] = config[:start].end_of_financial_quarter
+config[:prev_start] = config[:start].previous_financial_quarter
+config[:prev_end] = config[:prev_start].end_of_financial_quarter
+
+puts config[:prev_start]
+puts config[:prev_end]
+puts config[:start]
+puts config[:end]
+
+if config[:end] >= now
+  puts "Today's date must be after the financial quarter"
+  exit
+end
+
+prev_report_file = get_report_file(config[:prev_end], install_dir)
+report_file = get_report_file(config[:end], install_dir)
+puts prev_report_file
+puts report_file
+
+prev_totals = parse_report(prev_report_file)
+totals = parse_report(report_file)
+
+tmp = Tempfile.new(['storage-report', '.csv'])
+
+csv = CSV.open(tmp.path, 'w')
+
+csv << ['DLTS collections quarterly report - storage']
+csv << ['Year:', "FY#{config[:start].financial_year}"]
+csv << ['Quarter:', config[:start].financial_quarter.split.first]
+csv << ['Partner', 'Collection', 'Title',
+        'Files', 'Chg from prev qtr',
+        'Size in GB', 'Chg from prev qtr',
+       ]
+
+rstar_base = config[:rstar_dir]
+
+agent = Mechanize.new
+agent.add_auth(config[:rsbe_domain], config[:rsbe_user], config[:rsbe_pass])
 
 gigabyte = (10 ** 3) ** 3
 
@@ -170,10 +191,12 @@ end
 
 csv.close
 
-desc = "Storage Report for #{now.financial_quarter}"
+desc = "R* Storage Report for " +
+       "#{config[:start].financial_quarter.gsub(' ', '/')} - " +
+       "#{config[:start]} to #{config[:end]}"
 
-outfile = "storage_report_#{now.financial_quarter}.csv"
-outfile.gsub!(' ', '_')
+outfile = "storage_report_" +
+          "#{config[:start].financial_quarter.gsub(' ', '_')}.csv"
 
 mail = Mail.new do
   from     config[:mailfrom]
@@ -187,5 +210,7 @@ mail.delivery_method :sendmail
 
 mail.deliver!
 
-tmp.close
+FileUtils.cp(tmp.path, File.join(config[:output_dir], outfile))
+
+tmp.close!
 

@@ -16,9 +16,6 @@ require 'thor'
 require 'yaml'
 
 config = {
-#   :start   => Chronic.parse('last week').strftime('%Y-%m-%d'),
-#   :end     => Time.now.strftime('%Y-%m-%d'),
-  :fiscal_qtr => Time.now.strftime('Q1/%y'),
   :outfile => 'out.csv',
 }
 
@@ -30,15 +27,7 @@ OptionParser.new do |opts|
 
   opts.banner = "Usage: #{$0} [options]"
 
-#   opts.on('-s', '--start START_DATE', 'Start date for query') do |s|
-#     config[:start] = s
-#   end
-# 
-#   opts.on('-e', '--end END_DATE', 'End date for query') do |e|
-#     config[:end] = e
-#   end
-
-  opts.on('-f', '--fiscal-qtr', 'Fiscal Quarter, e.g. Q4/16') do |f|
+  opts.on('-f', '--fiscal-qtr QTR', 'Fiscal Quarter, e.g. Q4/2016') do |f|
     config[:fiscal_qtr] = f
   end
 
@@ -53,14 +42,26 @@ OptionParser.new do |opts|
 
 end.parse!
 
-now = Date.today
-
 Date.fiscal_zone = :us
 Date.fy_start_month = 9
 
-config[:start] =  now.previous_financial_quarter
-config[:end] = config[:start].end_of_financial_quarter
+now = Date.today
 
+if !config[:fiscal_qtr].nil?
+  if config[:fiscal_qtr] =~ /^Q([1234])\/(\d{4})$/
+    qtr = $1.to_i
+    year = $2.to_i
+    start_of_year = Date.new(year, 9, 1)
+    config[:start] = start_of_year.beginning_of_financial_quarter(qtr)
+  else
+    puts "Quarter must be specified in the form Q[1234]/YYYY, e.g. Q4/2016"
+    exit
+  end
+else
+  config[:start] = now.previous_financial_quarter
+end
+
+config[:end] = config[:start].end_of_financial_quarter
 config[:prev_start] = config[:start].previous_financial_quarter
 config[:prev_end] = config[:prev_start].end_of_financial_quarter
 
@@ -68,6 +69,11 @@ puts config[:prev_start]
 puts config[:prev_end]
 puts config[:start]
 puts config[:end]
+
+if config[:end] >= now
+  puts "Today's date must be after the financial quarter"
+  exit
+end
 
 OOB_URI = 'urn:ietf:wg:oauth:2.0:oob'
 APPLICATION_NAME = 'Analytics Reporter'
@@ -135,8 +141,8 @@ def calc_percent(r1, r2, col_num)
 end
 
 csv << ['DLTS collections quarterly report']
-csv << ['Year:', "FY#{now.financial_year}"]
-csv << ['Quarter:', now.financial_quarter.split.first]
+csv << ['Year:', "FY#{config[:start].financial_year}"]
+csv << ['Quarter:', config[:start].financial_quarter.split.first]
 csv << ['Account',
         'Property',
         '# of sessions',  'Chg from prev qtr',
@@ -222,7 +228,9 @@ csv.close
 
 Thor.new.print_table(all_csv_rows)
   
-desc = "Analytics Report for #{config[:start]} to #{config[:end]}"
+desc = "Google Analytics Report for " +
+       "#{config[:start].financial_quarter.gsub(' ', '/')} - " +
+       "#{config[:start]} to #{config[:end]}"
 
 mail = Mail.new do
   from     config[:mailfrom]

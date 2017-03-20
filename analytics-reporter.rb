@@ -15,74 +15,8 @@ require 'pp'
 require 'tempfile'
 require 'thor'
 require 'yaml'
+require './config'
 
-config = {
-  :output_dir => Dir.home,
-}
-
-yml = YAML.load_file('config.yaml')
-
-config.merge!(yml)
-
-OptionParser.new do |opts|
-
-  opts.banner = "Usage: #{$0} [options]"
-
-  opts.on('-f', '--fiscal-qtr QTR', 'Fiscal Quarter, e.g. Q4/2016') do |f|
-    config[:fiscal_qtr] = f
-  end
-
-  opts.on('-o', '--output-dir OUTPUT_DIR', 'Output directory') do |o|
-    config[:output_dir] = o
-  end
-
-  opts.on('-h', '--help', 'Print help message') do
-    puts opts
-    exit
-  end
-
-end.parse!
-
-Date.fiscal_zone = :us
-Date.fy_start_month = 9
-
-now = Date.today
-
-if !config[:fiscal_qtr].nil?
-  if config[:fiscal_qtr] =~ /^Q([1234])\/(\d{4})$/
-    qtr = $1.to_i
-    year = $2.to_i
-    start_of_year = Date.new(year, 9, 1)
-    config[:start] = start_of_year.beginning_of_financial_quarter(qtr)
-  else
-    puts "Quarter must be specified in the form Q[1234]/YYYY, e.g. Q4/2016"
-    exit
-  end
-else
-  config[:start] = now.previous_financial_quarter
-end
-
-config[:end] = config[:start].end_of_financial_quarter
-config[:prev_start] = config[:start].previous_financial_quarter
-config[:prev_end] = config[:prev_start].end_of_financial_quarter
-
-puts config[:prev_start]
-puts config[:prev_end]
-puts config[:start]
-puts config[:end]
-
-if config[:end] >= now
-  puts "Today's date must be after the financial quarter"
-  exit
-end
-
-OOB_URI = 'urn:ietf:wg:oauth:2.0:oob'
-APPLICATION_NAME = 'Analytics Reporter'
-CLIENT_SECRETS_PATH = File.join(Dir.home, '.analytics',
-                               'client_secret.json')
-CREDENTIALS_PATH    = File.join(Dir.home, '.analytics',
-                               "analytics-reporter.yaml")
-SCOPE = Google::Apis::AnalyticsV3::AUTH_ANALYTICS_READONLY
 
 ##
 # Ensure valid credentials, either by restoring from the saved credentials
@@ -91,41 +25,47 @@ SCOPE = Google::Apis::AnalyticsV3::AUTH_ANALYTICS_READONLY
 #
 # @return [Google::Auth::UserRefreshCredentials] OAuth2 credentials
 def authorize
-  FileUtils.mkdir_p(File.dirname(CREDENTIALS_PATH))
+  oob_uri = 'urn:ietf:wg:oauth:2.0:oob'
+  client_secrets_path = File.join(Dir.home, '.analytics',
+                                 'client_secret.json')
+  credentials_path    = File.join(Dir.home, '.analytics',
+                                 'analytics-reporter.yaml')
+  scope = Google::Apis::AnalyticsV3::AUTH_ANALYTICS_READONLY
 
-  client_id = Google::Auth::ClientId.from_file(CLIENT_SECRETS_PATH)
-  token_store = Google::Auth::Stores::FileTokenStore.new(file: CREDENTIALS_PATH)
+  FileUtils.mkdir_p(File.dirname(credentials_path))
+
+  client_id = Google::Auth::ClientId.from_file(client_secrets_path)
+  token_store = Google::Auth::Stores::FileTokenStore.new(
+    file: credentials_path)
   authorizer = Google::Auth::UserAuthorizer.new(
-    client_id, SCOPE, token_store)
+    client_id, scope, token_store)
   user_id = 'default'
   credentials = authorizer.get_credentials(user_id)
   if credentials.nil?
     url = authorizer.get_authorization_url(
-      base_url: OOB_URI)
+      base_url: oob_uri)
     puts "Open the following URL in the browser and enter the " +
          "resulting code after authorization"
     puts url
     code = gets
     credentials = authorizer.get_and_store_credentials_from_code(
-      user_id: user_id, code: code, base_url: OOB_URI)
+      user_id: user_id, code: code, base_url: oob_uri)
   end
   credentials
 end
 
-# Initialize the API
-service = Google::Apis::AnalyticsV3::AnalyticsService.new
-service.client_options.application_name = APPLICATION_NAME
-service.authorization = authorize
 
 def fmt_date(date)
   date.strftime('%Y-%m-%d')
 end
+
 
 # class Numeric
 #   def percent_of(n)
 #     self.to_f / n.to_f * 100.0
 #   end
 # end
+
 
 def calc_percent(r1, r2, col_num)
   val1 = r1[col_num].to_f
@@ -138,6 +78,14 @@ def calc_percent(r1, r2, col_num)
     'N/A'
   end
 end
+
+
+config = ReportConfig.get_config
+
+# Initialize the API
+service = Google::Apis::AnalyticsV3::AnalyticsService.new
+service.client_options.application_name = 'Analytics Reporter'
+service.authorization = authorize
 
 tmp = Tempfile.new(['google-analytics-report', '.csv'])
 

@@ -20,6 +20,8 @@ or install them individually
     gem install chronic
     gem install fiscali
     gem install google-api-client -v 0.9.1
+    gem install mail
+    gem install thor
 
 Once the gems are installed you must enable the Google Analytics API
 in the Developers Console using the wizard

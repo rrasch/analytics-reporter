@@ -155,7 +155,7 @@ totals.sort_by { |k,v| v[:size] }.reverse.each do |key, val|
   data.push(val[:title])
   data.push(val[:num_files])
   data.push(calc_change(prev_totals, totals, key, :num_files))
-  data.push(sprintf('%.2f GB', val[:size].to_f / gigabyte))
+  data.push(sprintf('%.2f', val[:size].to_f / gigabyte))
   data.push(calc_change(prev_totals, totals, key, :size))
   csv << data
 end

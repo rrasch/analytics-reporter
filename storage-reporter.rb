@@ -115,7 +115,7 @@ tmp = Tempfile.new(['storage-report', '.csv'])
 csv = CSV.open(tmp.path, 'w')
 
 csv << ['DLTS collections quarterly report - storage']
-csv << ['Year:', "FY#{config[:start].financial_year}"]
+csv << ['Year:', "FY#{config[:start].financial_year + 1}"]
 csv << ['Quarter:', config[:start].financial_quarter.split.first]
 csv << ['Partner', 'Collection', 'Title',
         'Files', 'Chg from prev qtr',
@@ -162,12 +162,13 @@ end
 
 csv.close
 
-desc = "R* Storage Report for " +
-       "#{config[:start].financial_quarter.gsub(' ', '/')} - " +
-       "#{config[:start]} to #{config[:end]}"
+qtr, year = config[:start].financial_quarter.split
+year = year.to_i + 1
 
-outfile = "storage_report_" +
-          "#{config[:start].financial_quarter.gsub(' ', '_')}.csv"
+desc = "R* Storage Report for " +
+       "#{qtr}/#{year} - #{config[:start]} to #{config[:end]}"
+
+outfile = "storage_report_#{qtr}_#{year}.csv"
 
 mail = Mail.new do
   from     config[:mailfrom]

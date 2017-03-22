@@ -92,7 +92,7 @@ tmp = Tempfile.new(['google-analytics-report', '.csv'])
 csv = CSV.open(tmp.path, 'w')
 
 csv << ['DLTS collections quarterly report']
-csv << ['Year:', "FY#{config[:start].financial_year}"]
+csv << ['Year:', "FY#{config[:start].financial_year + 1}"]
 csv << ['Quarter:', config[:start].financial_quarter.split.first]
 csv << ['Account',
         'Property',
@@ -178,13 +178,14 @@ end
 csv.close
 
 Thor.new.print_table(all_csv_rows)
+
+qtr, year = config[:start].financial_quarter.split
+year = year.to_i + 1
   
 desc = "Google Analytics Report for " +
-       "#{config[:start].financial_quarter.gsub(' ', '/')} - " +
-       "#{config[:start]} to #{config[:end]}"
+       "#{qtr}/#{year} - #{config[:start]} to #{config[:end]}"
 
-outfile = "analytics_report_" +
-          "#{config[:start].financial_quarter.gsub(' ', '_')}.csv"
+outfile = "analytics_report_#{qtr}_#{year}.csv"
 
 mail = Mail.new do
   from     config[:mailfrom]

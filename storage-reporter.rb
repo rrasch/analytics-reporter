@@ -127,25 +127,25 @@ rstar_base = config[:rstar_dir]
 agent = Mechanize.new
 agent.add_auth(config[:rsbe_domain], config[:rsbe_user], config[:rsbe_pass])
 
+partners_url = "#{config[:rsbe_domain]}/api/v0/partners"
+partners_list = JSON.parse(agent.get(partners_url).content)
+partners = {}
+partners_list.each do |partner|
+  collections_url = "#{partner['url']}/colls"
+  collections_list = JSON.parse(agent.get(collections_url).content)
+  collections = collections_list.map { |h| [h['code'], h] }.to_h
+  partner['collections'] = collections
+  partners[partner['code']] = partner
+end
+
+# pp partners
+
 gigabyte = (10 ** 3) ** 3
 
 totals.sort_by { |k,v| v[:size] }.reverse.each do |key, val|
-
   unless key == :all
-    partner_url_file    =  "#{rstar_base}/#{val[:provider]}/partner_url"
-    collection_url_file =  "#{rstar_base}/#{val[:provider]}/"
-    collection_url_file << "#{val[:collection]}/collection_url"
-    title = ""
-    if File.exist?(partner_url_file)
-      val[:partner_name] = get_rstar_name(partner_url_file, agent)
-      title << val[:partner_name]
-    end
-    if File.exist?(collection_url_file)
-      val[:collection_name] = get_rstar_name(collection_url_file, agent)
-      title << ' - ' unless title.empty?
-      title << val[:collection_name]
-    end
-    val[:title] = title
+    collection = partners[val[:provider]]['collections'][val[:collection]]
+    val[:title] = collection['name'] unless collection.nil?
   end
 
   #puts val

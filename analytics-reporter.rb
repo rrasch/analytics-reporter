@@ -12,6 +12,7 @@ require 'fiscali'
 require 'mail'
 require 'optparse'
 require 'pp'
+require 'spreadsheet'
 require 'tempfile'
 require 'thor'
 require 'yaml'
@@ -80,6 +81,12 @@ def calc_percent(r1, r2, col_num)
 end
 
 
+def add_row(csv, xls, *row)
+  csv << row
+  xls.row(xls.row_count).concat(row)
+end
+
+
 config = ReportConfig.get_config
 
 # Initialize the API
@@ -87,19 +94,21 @@ service = Google::Apis::AnalyticsV3::AnalyticsService.new
 service.client_options.application_name = 'Analytics Reporter'
 service.authorization = authorize
 
+workbook = Spreadsheet::Workbook.new
+
+xls = book.create_worksheet
+
 tmp = Tempfile.new(['google-analytics-report', '.csv'])
 
 csv = CSV.open(tmp.path, 'w')
 
-csv << ['DLTS collections quarterly report']
-csv << ['Year:', "FY#{config[:start].financial_year + 1}"]
-csv << ['Quarter:', config[:start].financial_quarter.split.first]
-csv << ['Account',
-        'Property',
-        '# of sessions',  'Chg from prev qtr',
-        '# of users',     'Chg from prev qtr',
-        '# of pageviews', 'Chg from prev qtr'
-       ]
+add_row(csv, xls, 'DLTS collections quarterly report')
+add_row(csv, xls, 'Year:', "FY#{config[:start].financial_year + 1}")
+add_row(csv, xls, 'Quarter:', config[:start].financial_quarter.split.first)
+add_row(csv, xls, 'Account', 'Property',
+                     '# of sessions',  'Chg from prev qtr',
+                     '# of users',     'Chg from prev qtr',
+                     '# of pageviews', 'Chg from prev qtr') 
 
 metrics = %w(ga:sessions ga:users ga:pageviews)
 metrics_str = metrics.join(',')
@@ -172,10 +181,12 @@ end
 # pp all_csv_rows
 
 all_csv_rows.sort_by { |x| x[2].to_i }.reverse.each do |val|
-  csv << val
+  add_row(csv, xls, val)
 end
 
 csv.close
+
+workbook.write 'out.xls'
 
 Thor.new.print_table(all_csv_rows)
 

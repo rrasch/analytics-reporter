@@ -9,6 +9,7 @@ This project is a set of scripts to query Google Analytics data for DLTS sites a
 - google-api-client gem
 - mail gem
 - mechanize gem
+- spreadsheet gem
 - thor gem
 - Ruby >= 2.0
 
@@ -25,6 +26,7 @@ or install them individually
     gem install google-api-client -v 0.9.1
     gem install mail
     gem install mechanize
+    gem install spreadsheet
     gem install thor
 
 Once the gems are installed you must enable the Google Analytics API

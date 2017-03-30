@@ -11,9 +11,7 @@ require 'fileutils'
 require 'fiscali'
 require 'mail'
 require 'optparse'
-require 'pp'
 require 'spreadsheet'
-require 'tempfile'
 require 'thor'
 require 'yaml'
 require './config'
@@ -81,136 +79,143 @@ def calc_percent(r1, r2, col_num)
 end
 
 
-def add_row(csv, xls, *row)
+def add_row(csv, xls, row)
   csv << row
   xls.row(xls.row_count).concat(row)
 end
 
+prefix = 'google_analytics_report'
 
-config = ReportConfig.get_config
+Dir.mktmpdir(prefix) do |tmpdir|
 
-# Initialize the API
-service = Google::Apis::AnalyticsV3::AnalyticsService.new
-service.client_options.application_name = 'Analytics Reporter'
-service.authorization = authorize
+  config = ReportConfig.get_config
 
-workbook = Spreadsheet::Workbook.new
+  # Initialize the API
+  service = Google::Apis::AnalyticsV3::AnalyticsService.new
+  service.client_options.application_name = 'Analytics Reporter'
+  service.authorization = authorize
 
-xls = book.create_worksheet
+  qtr, year = config[:start].financial_quarter.split
+  year = year.to_i + 1
 
-tmp = Tempfile.new(['google-analytics-report', '.csv'])
+  basename = File.join(tmpdir, "#{prefix}_#{qtr}_#{year}")
+  csv_file = "#{basename}.csv"
+  xls_file = "#{basename}.xls"
 
-csv = CSV.open(tmp.path, 'w')
+  workbook = Spreadsheet::Workbook.new
+  xls = workbook.create_worksheet
 
-add_row(csv, xls, 'DLTS collections quarterly report')
-add_row(csv, xls, 'Year:', "FY#{config[:start].financial_year + 1}")
-add_row(csv, xls, 'Quarter:', config[:start].financial_quarter.split.first)
-add_row(csv, xls, 'Account', 'Property',
+  csv = CSV.open(csv_file, 'w')
+
+  add_row(csv, xls, ['DLTS collections quarterly report'])
+  add_row(csv, xls, ['Year:', "FY#{config[:start].financial_year + 1}"])
+  add_row(csv, xls, ['Quarter:',
+                      config[:start].financial_quarter.split.first])
+  add_row(csv, xls, ['Account', 'Property',
                      '# of sessions',  'Chg from prev qtr',
                      '# of users',     'Chg from prev qtr',
-                     '# of pageviews', 'Chg from prev qtr') 
+                     '# of pageviews', 'Chg from prev qtr'])
 
-metrics = %w(ga:sessions ga:users ga:pageviews)
-metrics_str = metrics.join(',')
+  metrics = %w(ga:sessions ga:users ga:pageviews)
+  metrics_str = metrics.join(',')
 
-all_csv_rows = []
-all_csv_rows.push(Array.new)
+  all_csv_rows = []
+  all_csv_rows.push(Array.new)
 
-prev_totals = Array.new(3, 0)
-totals = Array.new(3, 0)
+  prev_totals = Array.new(3, 0)
+  totals = Array.new(3, 0)
 
-service.list_accounts.items.each do |account|
+  service.list_accounts.items.each do |account|
 
-  puts account.name
+    puts account.name
 
-  service.list_profiles(account.id, '~all').items.each do |profile|
-    view_name = profile.name.dup
-    if view_name.sub!(' (master view)', '').nil?
-      #puts "Ignoring #{view_name}"
-      next
+    service.list_profiles(account.id, '~all').items.each do |profile|
+      view_name = profile.name.dup
+      if view_name.sub!(' (master view)', '').nil?
+        #puts "Ignoring #{view_name}"
+        next
+      end
+      puts "Querying master view: #{view_name}"
+      #puts profile.inspect
+      prev_result = service.get_ga_data("ga:#{profile.id}",
+                                     fmt_date(config[:prev_start]),
+                                     fmt_date(config[:prev_end]),
+                                     metrics_str)
+
+      result = service.get_ga_data("ga:#{profile.id}",
+                                     fmt_date(config[:start]),
+                                     fmt_date(config[:end]),
+                                     metrics_str)
+
+      #puts "prev_result: ", prev_result.inspect
+      #puts "result: ", result.inspect
+
+      if !prev_result.rows.nil?
+        prev_result_row = prev_result.rows[0]
+      else
+        prev_result_row = Array.new(3, '0')
+      end
+
+      if !result.rows.nil?
+        result_row = result.rows[0]
+      else
+        result_row = Array.new(3, '0')
+      end
+
+      csv_row = []
+      csv_row.push(account.name)
+      csv_row.push(view_name)
+      (0..2).each do |n|
+        csv_row.push(result_row[n])
+        csv_row.push(calc_percent(prev_result_row, result_row, n))
+        prev_totals[n] += prev_result_row[n].to_i
+        totals[n] += result_row[n].to_i
+      end
+
+      all_csv_rows.push(csv_row)
+
     end
-    puts "Querying master view: #{view_name}"
-    #puts profile.inspect
-    prev_result = service.get_ga_data("ga:#{profile.id}",
-                                   fmt_date(config[:prev_start]),
-                                   fmt_date(config[:prev_end]),
-                                   metrics_str)
-  
-    result = service.get_ga_data("ga:#{profile.id}",
-                                   fmt_date(config[:start]),
-                                   fmt_date(config[:end]),
-                                   metrics_str)
-
-    #puts "prev_result: ", prev_result.inspect
-    #puts "result: ", result.inspect
-
-    if !prev_result.rows.nil?
-      prev_result_row = prev_result.rows[0]
-    else
-      prev_result_row = Array.new(3, '0')
-    end
-
-    if !result.rows.nil?
-      result_row = result.rows[0]
-    else
-      result_row = Array.new(3, '0')
-    end
-
-    csv_row = []
-    csv_row.push(account.name)
-    csv_row.push(view_name)
-    (0..2).each do |n|
-      csv_row.push(result_row[n])
-      csv_row.push(calc_percent(prev_result_row, result_row, n))
-      prev_totals[n] += prev_result_row[n].to_i
-      totals[n] += result_row[n].to_i
-    end
-
-    all_csv_rows.push(csv_row)
 
   end
 
+  all_csv_rows[0].push('All', 'All')
+  (0..2).each do |n|
+    all_csv_rows[0].push(totals[n])
+    all_csv_rows[0].push(calc_percent(prev_totals, totals, n))
+  end
+
+  # pp all_csv_rows
+
+  all_csv_rows.sort_by { |x| x[2].to_i }.reverse.each do |val|
+    add_row(csv, xls, val)
+  end
+
+  csv.close
+
+  workbook.write(xls_file)
+
+  Thor.new.print_table(all_csv_rows)
+
+  desc = "Google Analytics Report for " +
+         "#{qtr}/#{year} - #{config[:start]} to #{config[:end]}"
+
+  mail = Mail.new do
+    from     config[:mailfrom]
+    to       config[:mailto]
+    subject  desc
+    body     desc
+    add_file csv_file
+    add_file xls_file
+  end
+
+  mail.delivery_method :sendmail
+
+  mail.deliver!
+
+  if Dir.exists?(config[:output_dir])
+    FileUtils.cp(csv_file, File.join(config[:output_dir]))
+    FileUtils.cp(xls_file, File.join(config[:output_dir]))
+  end
+
 end
-
-all_csv_rows[0].push('All', 'All')
-(0..2).each do |n|
-  all_csv_rows[0].push(totals[n])
-  all_csv_rows[0].push(calc_percent(prev_totals, totals, n))
-end
-
-# pp all_csv_rows
-
-all_csv_rows.sort_by { |x| x[2].to_i }.reverse.each do |val|
-  add_row(csv, xls, val)
-end
-
-csv.close
-
-workbook.write 'out.xls'
-
-Thor.new.print_table(all_csv_rows)
-
-qtr, year = config[:start].financial_quarter.split
-year = year.to_i + 1
-  
-desc = "Google Analytics Report for " +
-       "#{qtr}/#{year} - #{config[:start]} to #{config[:end]}"
-
-outfile = "analytics_report_#{qtr}_#{year}.csv"
-
-mail = Mail.new do
-  from     config[:mailfrom]
-  to       config[:mailto]
-  subject  desc
-  body     desc
-  add_file :filename => outfile, :content => tmp.read
-end
-
-mail.delivery_method :sendmail
-
-mail.deliver!
-
-FileUtils.cp(tmp.path, File.join(config[:output_dir], outfile))
-
-tmp.close!
 

@@ -2,6 +2,7 @@
 #
 # Author: rasan@nyu.edu
 
+require 'fiscali'
 require 'optparse'
 require 'yaml'
 
@@ -68,6 +69,10 @@ class ReportConfig
       puts "Today's date must be after the financial quarter"
       exit
     end
+
+    qtr, year = config[:start].financial_quarter.split
+    config[:report_qtr] = qtr
+    config[:report_year] = year.to_i + 1
 
     return config
 

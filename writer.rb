@@ -2,6 +2,9 @@
 #
 # Author: rasan@nyu.edu
 
+require 'csv'
+require 'spreadsheet'
+
 class ReportWriter
 
   def initialize(config, tmpdir, prefix)

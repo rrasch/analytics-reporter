@@ -2,19 +2,14 @@
 #
 # Author: rasan@nyu.edu
 
-require 'chronic'
-require 'csv'
 require 'google/apis/analytics_v3'
 require 'googleauth'
 require 'googleauth/stores/file_token_store'
 require 'fileutils'
-require 'fiscali'
-require 'mail'
-require 'optparse'
-require 'spreadsheet'
 require 'thor'
-require 'yaml'
-require './config'
+require_relative './config'
+require_relative './util'
+require_relative './writer'
 
 
 ##
@@ -59,13 +54,6 @@ def fmt_date(date)
 end
 
 
-# class Numeric
-#   def percent_of(n)
-#     self.to_f / n.to_f * 100.0
-#   end
-# end
-
-
 def calc_percent(r1, r2, col_num)
   val1 = r1[col_num].to_f
   val2 = r2[col_num].to_f
@@ -79,42 +67,7 @@ def calc_percent(r1, r2, col_num)
 end
 
 
-def add_row(csv, xls, row)
-  csv << row
-  xls.row(xls.row_count).concat(row)
-end
-
-prefix = 'google_analytics_report'
-
-Dir.mktmpdir(prefix) do |tmpdir|
-
-  config = ReportConfig.get_config
-
-  # Initialize the API
-  service = Google::Apis::AnalyticsV3::AnalyticsService.new
-  service.client_options.application_name = 'Analytics Reporter'
-  service.authorization = authorize
-
-  qtr, year = config[:start].financial_quarter.split
-  year = year.to_i + 1
-
-  basename = File.join(tmpdir, "#{prefix}_#{qtr}_#{year}")
-  csv_file = "#{basename}.csv"
-  xls_file = "#{basename}.xls"
-
-  workbook = Spreadsheet::Workbook.new
-  xls = workbook.create_worksheet
-
-  csv = CSV.open(csv_file, 'w')
-
-  add_row(csv, xls, ['DLTS collections quarterly report'])
-  add_row(csv, xls, ['Year:', "FY#{config[:start].financial_year + 1}"])
-  add_row(csv, xls, ['Quarter:',
-                      config[:start].financial_quarter.split.first])
-  add_row(csv, xls, ['Account', 'Property',
-                     '# of sessions',  'Chg from prev qtr',
-                     '# of users',     'Chg from prev qtr',
-                     '# of pageviews', 'Chg from prev qtr'])
+def get_analytics(service, config)
 
   metrics = %w(ga:sessions ga:users ga:pageviews)
   metrics_str = metrics.join(',')
@@ -186,36 +139,42 @@ Dir.mktmpdir(prefix) do |tmpdir|
 
   # pp all_csv_rows
 
+  return all_csv_rows
+end
+
+
+config = ReportConfig.get_config
+
+# Initialize the API
+ga_service = Google::Apis::AnalyticsV3::AnalyticsService.new
+ga_service.client_options.application_name = 'Analytics Reporter'
+ga_service.authorization = authorize
+
+file_prefix = 'google_analytics_report'
+
+Dir.mktmpdir(file_prefix) do |tmpdir|
+
+  writer = ReportWriter.new(config, tmpdir, file_prefix)
+
+  writer.add_row(['DLTS collections quarterly report'])
+  writer.add_row(['Year:', "FY#{config[:report_year]}"])
+  writer.add_row(['Quarter:', config[:report_qtr]])
+  writer.add_row(['Account', 'Property',
+                  '# of sessions',  'Chg from prev qtr',
+                  '# of users',     'Chg from prev qtr',
+                  '# of pageviews', 'Chg from prev qtr'])
+
+  all_csv_rows = get_analytics(ga_service, config)
+
   all_csv_rows.sort_by { |x| x[2].to_i }.reverse.each do |val|
-    add_row(csv, xls, val)
+    writer.add_row(val)
   end
-
-  csv.close
-
-  workbook.write(xls_file)
 
   Thor.new.print_table(all_csv_rows)
 
-  desc = "Google Analytics Report for " +
-         "#{qtr}/#{year} - #{config[:start]} to #{config[:end]}"
+  writer.close
 
-  mail = Mail.new do
-    from     config[:mailfrom]
-    to       config[:mailto]
-    subject  desc
-    body     desc
-    add_file csv_file
-    add_file xls_file
-  end
-
-  mail.delivery_method :sendmail
-
-  mail.deliver!
-
-  if Dir.exists?(config[:output_dir])
-    FileUtils.cp(csv_file, File.join(config[:output_dir]))
-    FileUtils.cp(xls_file, File.join(config[:output_dir]))
-  end
+  Util.mail_and_copy(config, writer.files, 'Google Analytics')
 
 end
 

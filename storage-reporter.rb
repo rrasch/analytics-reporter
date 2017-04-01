@@ -9,9 +9,12 @@ require 'json'
 require 'mail'
 require 'mechanize'
 require 'optparse'
+require 'spreadsheet'
 require 'tempfile'
 require 'yaml'
-require './config'
+require_relative './config'
+require_relative './util'
+require_relative './writer'
 
 
 def parse_report(report_file)
@@ -63,11 +66,6 @@ def get_rstar_name(file, agent)
 end
 
 
-def calc_percent(a, b)
-  ((b.to_f - a.to_f) / a.to_f) * 100
-end
-
-
 def get_report_file(end_qtr, report_dir)
   report_date = Chronic.parse('last sunday',
                               :now => end_qtr.next_financial_quarter)
@@ -88,101 +86,86 @@ def calc_change(t1, t2, k1, k2)
 end
 
 
+def get_partners(config)
+  agent = Mechanize.new
+  agent.add_auth(config[:rsbe_domain],
+                 config[:rsbe_user], config[:rsbe_pass])
+
+  partners = {}
+  partners_url = "#{config[:rsbe_domain]}/api/v0/partners"
+  partners_list = JSON.parse(agent.get(partners_url).content)
+  partners_list.each do |partner|
+    collections_url = "#{partner['url']}/colls"
+    collections_list = JSON.parse(agent.get(collections_url).content)
+    collections = collections_list.map { |h| [h['code'], h] }.to_h
+    partner['collections'] = collections
+    partners[partner['code']] = partner
+  end
+  #pp partners
+  return partners
+end
+
+
 config = ReportConfig.get_config
 
 install_dir = File.join(Dir.home, "storage-reports")
 
-if config[:use_storage_repo]
+if config[:use_report_repo]
   if Dir.exist?(install_dir)
     Dir.chdir(install_dir) do
-      system('git pull')
+      Util.do_cmd('git pull')
     end
   else
-    system("git clone '#{config[:storage_repo]}' #{install_dir}")
+    Util.do_cmd("git clone '#{config[:report_repo]}' #{install_dir}")
   end
 end
 
 prev_report_file = get_report_file(config[:prev_end], install_dir)
 report_file = get_report_file(config[:end], install_dir)
-puts prev_report_file
-puts report_file
+puts "previous report file: ", prev_report_file
+puts "current report file: ", report_file
 
 prev_totals = parse_report(prev_report_file)
 totals = parse_report(report_file)
 
-tmp = Tempfile.new(['storage-report', '.csv'])
+partners = get_partners(config)
 
-csv = CSV.open(tmp.path, 'w')
+file_prefix = 'storage_report'
 
-csv << ['DLTS collections quarterly report - storage']
-csv << ['Year:', "FY#{config[:start].financial_year + 1}"]
-csv << ['Quarter:', config[:start].financial_quarter.split.first]
-csv << ['Partner', 'Collection', 'Title',
-        'Files', 'Chg from prev qtr',
-        'Size in GB', 'Chg from prev qtr',
-       ]
+Dir.mktmpdir(file_prefix) do |tmpdir|
 
-rstar_base = config[:rstar_dir]
+  writer = ReportWriter.new(config, tmpdir, file_prefix)
 
-agent = Mechanize.new
-agent.add_auth(config[:rsbe_domain], config[:rsbe_user], config[:rsbe_pass])
+  writer.add_row(['DLTS collections quarterly report - storage'])
+  writer.add_row(['Year:', "FY#{config[:report_year]}"])
+  writer.add_row(['Quarter:', config[:report_qtr]])
+  writer.add_row(['Partner', 'Collection', 'Title',
+                  'Files', 'Chg from prev qtr',
+                  'Size in GB', 'Chg from prev qtr'])
 
-partners_url = "#{config[:rsbe_domain]}/api/v0/partners"
-partners_list = JSON.parse(agent.get(partners_url).content)
-partners = {}
-partners_list.each do |partner|
-  collections_url = "#{partner['url']}/colls"
-  collections_list = JSON.parse(agent.get(collections_url).content)
-  collections = collections_list.map { |h| [h['code'], h] }.to_h
-  partner['collections'] = collections
-  partners[partner['code']] = partner
-end
+  gigabyte = (10 ** 3) ** 3
 
-# pp partners
+  totals.sort_by { |k,v| v[:size] }.reverse.each do |key, val|
+    unless key == :all || partners[val[:provider]].nil?
+      collection = partners[val[:provider]]['collections'][val[:collection]]
+      val[:title] = collection['name'] unless collection.nil?
+    end
 
-gigabyte = (10 ** 3) ** 3
-
-totals.sort_by { |k,v| v[:size] }.reverse.each do |key, val|
-  unless key == :all
-    collection = partners[val[:provider]]['collections'][val[:collection]]
-    val[:title] = collection['name'] unless collection.nil?
+    #puts val
+    data = []
+    data.push(val[:provider])
+    data.push(val[:collection])
+    data.push(val[:title])
+    data.push(val[:num_files])
+    data.push(calc_change(prev_totals, totals, key, :num_files))
+    data.push(sprintf('%.2f', val[:size].to_f / gigabyte))
+    data.push(calc_change(prev_totals, totals, key, :size))
+    writer.add_row(data)
   end
 
-  #puts val
-  data = []
-  data.push(val[:provider])
-  data.push(val[:collection])
-  data.push(val[:title])
-  data.push(val[:num_files])
-  data.push(calc_change(prev_totals, totals, key, :num_files))
-  data.push(sprintf('%.2f', val[:size].to_f / gigabyte))
-  data.push(calc_change(prev_totals, totals, key, :size))
-  csv << data
+  writer.close
+
+  Util.mail_and_copy(config, writer.files, 'R* Storage')
+
 end
-
-csv.close
-
-qtr, year = config[:start].financial_quarter.split
-year = year.to_i + 1
-
-desc = "R* Storage Report for " +
-       "#{qtr}/#{year} - #{config[:start]} to #{config[:end]}"
-
-outfile = "storage_report_#{qtr}_#{year}.csv"
-
-mail = Mail.new do
-  from     config[:mailfrom]
-  to       config[:mailto]
-  subject  desc
-  body     desc
-  add_file :filename => outfile, :content => tmp.read
-end
-
-mail.delivery_method :sendmail
-
-mail.deliver!
-
-FileUtils.cp(tmp.path, File.join(config[:output_dir], outfile))
-
-tmp.close!
 

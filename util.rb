@@ -2,6 +2,7 @@
 #
 # Author: rasan@nyu.edu
 
+require 'mail'
 require 'open3'
 
 class Util

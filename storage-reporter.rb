@@ -143,9 +143,9 @@ Dir.mktmpdir(file_prefix) do |tmpdir|
   writer.add_row(['DLTS collections quarterly report - storage'])
   writer.add_row(['Year:', "FY#{config[:report_year]}"])
   writer.add_row(['Quarter:', config[:report_qtr]])
-  writer.add_row(['Partner', 'Collection', 'Title',
-                  'Files', 'Chg from prev qtr',
-                  'Size in GB', 'Chg from prev qtr'])
+  writer.add_row_header(['Partner', 'Collection', 'Title',
+                         'Files', 'Chg from prev qtr',
+                         'Size in GB', 'Chg from prev qtr'])
 
   gigabyte = (10 ** 3) ** 3
 

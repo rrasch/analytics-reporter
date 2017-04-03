@@ -19,12 +19,18 @@ class ReportWriter
     @fmt_perc_inc = Spreadsheet::Format.new :color  => :green,
                                             :weight => :bold
     @fmt_num      = Spreadsheet::Format.new :weight => :bold
+    @fmt_header   = Spreadsheet::Format.new :underline => :single
   end
 
-  def add_row(row)
+  def add_row_header(row)
+    add_row(row, @fmt_header)
+  end
+
+  def add_row(row, row_format=nil)
     @csv << row
     row_num = @xls.row_count
     @xls.row(row_num).concat(row)
+    @xls.row(row_num).default_format = row_format unless row_format.nil?
     row.each_with_index do |val, i|
       val_str = val.to_s
       fmt = nil

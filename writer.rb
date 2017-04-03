@@ -48,13 +48,14 @@ class ReportWriter
       high = 1
       row = 0
       @xls.column(col).each do |cell|
-        w = cell==nil || cell=='' ? 1 : cell.to_s.strip.split('').count+3
-        ratio = @xls.row(row).format(col).font.size/10
-        w = (w*ratio).round
+        w = cell == nil || cell == '' ? 1
+          : cell.to_s.strip.split('').count + 3
+        ratio = @xls.row(row).format(col).font.size / 10
+        w = (w * ratio).round
         if w > high
           high = w
         end
-        row=row+1
+        row = row + 1
       end
       @xls.column(col).width = high
     end
@@ -62,11 +63,11 @@ class ReportWriter
       high = 1
       col = 0
       @xls.row(row).each do |cell|
-        w = @xls.row(row).format(col).font.size+4
+        w = @xls.row(row).format(col).font.size + 4
         if w > high
           high = w
         end
-        col=col+1
+        col = col + 1
       end
       @xls.row(row).height = high
     end

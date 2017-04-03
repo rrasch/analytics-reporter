@@ -110,7 +110,7 @@ config = ReportConfig.get_config
 
 install_dir = File.join(Dir.home, "storage-reports")
 
-if config[:use_report_repo]
+if config[:use_web]
   if Dir.exist?(install_dir)
     Dir.chdir(install_dir) do
       Util.do_cmd('git pull')
@@ -128,7 +128,11 @@ puts "current report file: ", report_file
 prev_totals = parse_report(prev_report_file)
 totals = parse_report(report_file)
 
-partners = get_partners(config)
+if config[:use_web]
+  partners = get_partners(config)
+else
+  partners = {}
+end
 
 file_prefix = 'storage_report'
 

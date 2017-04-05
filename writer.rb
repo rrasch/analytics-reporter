@@ -14,13 +14,15 @@ class ReportWriter
     @csv = CSV.open(@csv_file, 'w')
     @xls_file = "#{basename}.xls"
     @xls = Spreadsheet::Workbook.new.create_worksheet
-    @fmt_title    = Spreadsheet::Format.new :align     => :center
-    @fmt_header   = Spreadsheet::Format.new :underline => :single
-    @fmt_perc_dec = Spreadsheet::Format.new :color     => :red,
-                                            :weight    => :bold
-    @fmt_perc_inc = Spreadsheet::Format.new :color     => :green,
-                                            :weight    => :bold
-    @fmt_num      = Spreadsheet::Format.new :weight    => :bold
+    @fmt_title   = Spreadsheet::Format.new :align => :center
+    @fmt_header  = Spreadsheet::Format.new :underline => :single
+    @fmt_num_dec = Spreadsheet::Format.new :color => :red
+    @fmt_num_inc = Spreadsheet::Format.new :color => :green
+    @fmt_num_reg = Spreadsheet::Format.new :color => :black
+    [@fmt_num_dec, @fmt_num_inc, @fmt_num_reg].each do |fmt|
+      fmt.align = :right
+      fmt.font.weight = :bold
+    end
   end
 
   def add_row_header(row)
@@ -38,12 +40,14 @@ class ReportWriter
       if val_str =~ /^(.*)%$/
         percent = $1.to_f
         if percent < 0
-          fmt = @fmt_perc_dec
+          fmt = @fmt_num_dec
         elsif percent > 0
-          fmt = @fmt_perc_inc
+          fmt = @fmt_num_inc
+        else
+          fmt = @fmt_num_dec
         end
-      elsif val_str =~ /^\d+$/
-        fmt = @fmt_num
+      elsif val_str =~ /^(\d+(\.\d{2})?|N\/A?)$/
+        fmt = @fmt_num_reg
       end
       @xls.row(row_num).set_format(i, fmt) if fmt
     end

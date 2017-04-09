@@ -44,9 +44,9 @@ class ReportWriter
         elsif percent > 0
           fmt = @fmt_num_inc
         else
-          fmt = @fmt_num_dec
+          fmt = @fmt_num_reg
         end
-      elsif val_str =~ /^(\d+(\.\d{2})?|N\/A?)$/
+      elsif val_str =~ /^(\d+(,\d{3})*(\.\d{2})?|N\/A?)$/
         fmt = @fmt_num_reg
       end
       @xls.row(row_num).set_format(i, fmt) if fmt

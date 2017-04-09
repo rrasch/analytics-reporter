@@ -79,7 +79,7 @@ def calc_change(t1, t2, k1, k2)
     val1 = t1[k1][k2].to_f
     val2 = t2[k1][k2].to_f
     #puts "val1=#{val1} val2=#{val2}"
-    sprintf('%.2f%', ((val2 - val1) / val1) * 100)
+    Util.commify(sprintf('%.2f', ((val2 - val1) / val1) * 100)) + '%'
   else
     return 'N/A'
   end
@@ -160,9 +160,9 @@ Dir.mktmpdir(file_prefix) do |tmpdir|
     data.push(val[:provider])
     data.push(val[:collection])
     data.push(val[:title])
-    data.push(val[:num_files])
+    data.push(Util.commify(val[:num_files]))
     data.push(calc_change(prev_totals, totals, key, :num_files))
-    data.push(sprintf('%.2f', val[:size].to_f / gigabyte))
+    data.push(Util.commify(sprintf('%.2f', val[:size].to_f / gigabyte)))
     data.push(calc_change(prev_totals, totals, key, :size))
     writer.add_row(data)
   end

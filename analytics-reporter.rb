@@ -60,7 +60,7 @@ def calc_percent(r1, r2, col_num)
   #puts "val1=#{val1}"
   #puts "val2=#{val2}"
   if !val1.zero?
-    sprintf('%.2f%', ((val2 - val1) / val1) * 100)
+    Util.commify(sprintf('%.2f', ((val2 - val1) / val1) * 100)) + '%'
   else
     'N/A'
   end
@@ -119,7 +119,7 @@ def get_analytics(service, config)
       csv_row.push(account.name)
       csv_row.push(view_name)
       (0..2).each do |n|
-        csv_row.push(result_row[n])
+        csv_row.push(Util.commify(result_row[n]))
         csv_row.push(calc_percent(prev_result_row, result_row, n))
         prev_totals[n] += prev_result_row[n].to_i
         totals[n] += result_row[n].to_i

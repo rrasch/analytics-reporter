@@ -42,5 +42,9 @@ class Util
   end
 
 
+  def self.commify(number)
+    number.to_s.reverse.gsub(/(\d+\.)?(\d{3})(?=\d)/, '\\1\\2,').reverse
+  end
+
 end
 

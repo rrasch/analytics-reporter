@@ -88,6 +88,11 @@ def get_analytics(service, config)
         #puts "Ignoring #{view_name}"
         next
       end
+
+      ga_url = "https://analytics.google.com/analytics/web/" +
+               "?authuser=1#report/defaultid/a#{profile.account_id}" +
+               "w#{profile.internal_web_property_id}p#{profile.id}/"
+
       puts "Querying master view: #{view_name}"
       #puts profile.inspect
       prev_result = service.get_ga_data("ga:#{profile.id}",
@@ -117,7 +122,7 @@ def get_analytics(service, config)
 
       csv_row = []
       csv_row.push(account.name)
-      csv_row.push(view_name)
+      csv_row.push([ga_url, view_name])
       (0..2).each do |n|
         csv_row.push(Util.commify(result_row[n]))
         csv_row.push(calc_percent(prev_result_row, result_row, n))

@@ -16,6 +16,8 @@ class ReportWriter
     @xls = Spreadsheet::Workbook.new.create_worksheet
     @fmt_title   = Spreadsheet::Format.new :align => :center
     @fmt_header  = Spreadsheet::Format.new :underline => :single
+    @fmt_link    = Spreadsheet::Format.new :color => :blue,
+                                           :underline => :single
     @fmt_num_dec = Spreadsheet::Format.new :color => :red
     @fmt_num_inc = Spreadsheet::Format.new :color => :green
     @fmt_num_reg = Spreadsheet::Format.new :color => :black
@@ -30,27 +32,33 @@ class ReportWriter
   end
 
   def add_row(row, row_format = nil)
-    @csv << row
     row_num = @xls.row_count
-    @xls.row(row_num).concat(row)
     @xls.row(row_num).default_format = row_format unless row_format.nil?
     row.each_with_index do |val, i|
-      val_str = val.to_s
       fmt = nil
-      if val_str =~ /^(.*)%$/
-        percent = $1.to_f
-        if percent < 0
-          fmt = @fmt_num_dec
-        elsif percent > 0
-          fmt = @fmt_num_inc
-        else
+      if Array === val
+        @xls[row_num, i] = Spreadsheet::Link.new(*val)
+        row[i] = val[1]
+        fmt = @fmt_link
+      else
+        val_str = val.to_s
+        @xls[row_num, i] = val_str
+        if val_str =~ /^(.*)%$/
+          percent = $1.to_f
+          if percent < 0
+            fmt = @fmt_num_dec
+          elsif percent > 0
+            fmt = @fmt_num_inc
+          else
+            fmt = @fmt_num_reg
+          end
+        elsif val_str =~ /^(\d+(,\d{3})*(\.\d{2})?|N\/A?)$/
           fmt = @fmt_num_reg
         end
-      elsif val_str =~ /^(\d+(,\d{3})*(\.\d{2})?|N\/A?)$/
-        fmt = @fmt_num_reg
       end
       @xls.row(row_num).set_format(i, fmt) if fmt
     end
+    @csv << row
   end
 
   # http://stackoverflow.com/questions/11621919/using-ruby-spreadsheet-gem-is-there-a-way-to-get-cell-to-adjust-to-size-of-cont
@@ -95,7 +103,7 @@ class ReportWriter
   end
 
   def close
-    @cvs_close
+    @csv.close
     autofit(1)
     @xls.merge_cells(0, 0, 0, @xls.column_count - 1)
     @xls.row(0).set_format(0, @fmt_title)

@@ -54,6 +54,11 @@ def fmt_date(date)
 end
 
 
+def fmt_date_qry(date)
+  date.strftime('%Y%m%d')
+end
+
+
 def calc_percent(r1, r2, col_num)
   val1 = r1[col_num].to_f
   val2 = r2[col_num].to_f
@@ -89,9 +94,13 @@ def get_analytics(service, config)
         next
       end
 
+      query =  "?_u.date00=#{fmt_date_qry(config[:prev_start])}" +
+               "&_u.date01=#{fmt_date_qry(config[:prev_end])}"
+
       ga_url = "https://analytics.google.com/analytics/web/" +
                "?authuser=1#report/defaultid/a#{profile.account_id}" +
-               "w#{profile.internal_web_property_id}p#{profile.id}/"
+               "w#{profile.internal_web_property_id}p#{profile.id}/" +
+                CGI.escape(query) + "/"
 
       puts "Querying master view: #{view_name}"
       #puts profile.inspect
@@ -124,7 +133,7 @@ def get_analytics(service, config)
       csv_row.push(account.name)
       csv_row.push([ga_url, view_name])
       (0..2).each do |n|
-        csv_row.push(Util.commify(result_row[n]))
+        csv_row.push(result_row[n])
         csv_row.push(calc_percent(prev_result_row, result_row, n))
         prev_totals[n] += prev_result_row[n].to_i
         totals[n] += result_row[n].to_i

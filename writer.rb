@@ -42,7 +42,6 @@ class ReportWriter
         fmt = @fmt_link
       else
         val_str = val.to_s
-        @xls[row_num, i] = val_str
         if val_str =~ /^(.*)%$/
           percent = $1.to_f
           if percent < 0
@@ -52,9 +51,12 @@ class ReportWriter
           else
             fmt = @fmt_num_reg
           end
-        elsif val_str =~ /^(\d+(,\d{3})*(\.\d{2})?|N\/A?)$/
+          val_str = Util.commify(val_str)
+        elsif val_str =~ /^(\d+|N\/A)$/
           fmt = @fmt_num_reg
+          val_str = Util.commify(val_str)
         end
+        @xls[row_num, i] = val_str
       end
       @xls.row(row_num).set_format(i, fmt) if fmt
     end

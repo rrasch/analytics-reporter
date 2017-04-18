@@ -1,0 +1,11 @@
+<div class="container">
+  <div class="col-xs-12">
+    <h1>Storage Cornell ACO</h1>
+    <hr>
+    <% if @data %>
+      <%= area_chart(@data)%> 
+    <% else %>
+      <p>No data...</p>
+    <% end %>
+  </div>
+</div>

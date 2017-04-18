@@ -46,5 +46,44 @@ class Util
     number.to_s.reverse.gsub(/(\d+\.)?(\d{3})(?=\d)/, '\\1\\2,').reverse
   end
 
+
+  def self.parse_report(report_file)
+    totals = Hash.new
+    totals[:all] = {
+                     :size       => 0,
+                     :num_files  => 0,
+                     :provider   => 'all',
+                     :collection => 'all'
+                   }
+    File.open(report_file).each do |line|
+      next if line =~ /DATESTAMP/
+      #puts line
+      path, oxum = line.split(':Arbitrary-Oxum: ')
+      #puts path
+      #puts oxum
+      provider, collection = path.split('/').slice(1,2)
+      #puts provider
+      #puts collection
+      size, num_files = oxum.split('.')
+      #puts size
+      #puts num_files
+      key = "#{provider}/#{collection}".to_sym
+      #puts "key #{key}"
+      if !totals.key?(key)
+        totals[key] = {
+                        :size       => 0,
+                        :num_files  => 0,
+                        :provider   => provider,
+                        :collection => collection
+                      }
+      end
+      totals[key][:size] += size.to_i
+      totals[key][:num_files] += num_files.to_i
+      totals[:all][:size] += size.to_i
+      totals[:all][:num_files] += num_files.to_i
+    end
+    return totals
+  end
+
 end
 

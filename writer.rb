@@ -52,7 +52,7 @@ class ReportWriter
             fmt = @fmt_num_reg
           end
           val_str = Util.commify(val_str)
-        elsif val_str =~ /^(\d+|N\/A)$/
+        elsif val_str =~ /^(\d+(\.\d+)?|N\/A)$/
           fmt = @fmt_num_reg
           val_str = Util.commify(val_str)
         end

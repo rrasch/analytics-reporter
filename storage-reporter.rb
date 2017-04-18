@@ -160,9 +160,9 @@ Dir.mktmpdir(file_prefix) do |tmpdir|
     data.push(val[:provider])
     data.push(val[:collection])
     data.push(val[:title])
-    data.push(Util.commify(val[:num_files]))
+    data.push(val[:num_files])
     data.push(calc_change(prev_totals, totals, key, :num_files))
-    data.push(Util.commify(sprintf('%.2f', val[:size].to_f / gigabyte)))
+    data.push(sprintf('%.2f', val[:size].to_f / gigabyte))
     data.push(calc_change(prev_totals, totals, key, :size))
     writer.add_row(data)
   end

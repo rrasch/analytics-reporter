@@ -9,7 +9,7 @@ class ReportWriter
 
   def initialize(config, tmpdir, prefix)
     basename = File.join(tmpdir,
-      "#{prefix}_#{config[:report_qtr]}_#{config[:report_year]}")
+      "#{prefix}_FY#{config[:report_year]}_#{config[:report_qtr]}")
     @csv_file = "#{basename}.csv"
     @csv = CSV.open(@csv_file, 'w')
     @xls_file = "#{basename}.xls"
@@ -20,6 +20,8 @@ class ReportWriter
     @fmt_header  = Spreadsheet::Format.new :underline => :single
     @fmt_link    = Spreadsheet::Format.new :color => :blue,
                                            :underline => :single
+    @fmt_qtr     = Spreadsheet::Format.new :weight => :bold
+    @fmt_label   = Spreadsheet::Format.new :underline => :single
     @fmt_num_dec = Spreadsheet::Format.new :color => :red
     @fmt_num_inc = Spreadsheet::Format.new :color => :green
     @fmt_num_reg = Spreadsheet::Format.new :color => :black
@@ -111,6 +113,9 @@ class ReportWriter
     autofit(1)
     @xls.merge_cells(0, 0, 0, @xls.column_count - 1)
     @xls.row(0).set_format(0, @fmt_title)
+    @xls.row(1).set_format(1, @fmt_qtr)
+    @xls.row(2).set_format(1, @fmt_qtr)
+    @xls.row(3).default_format = @fmt_label
     @xls.workbook.write(@xls_file)
   end
 

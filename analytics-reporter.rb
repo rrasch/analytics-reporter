@@ -164,13 +164,13 @@ ga_service = Google::Apis::AnalyticsV3::AnalyticsService.new
 ga_service.client_options.application_name = 'Analytics Reporter'
 ga_service.authorization = authorize
 
-file_prefix = 'google_analytics_report'
+file_prefix = 'analytics_report'
 
 Dir.mktmpdir(file_prefix) do |tmpdir|
 
   writer = ReportWriter.new(config, tmpdir, file_prefix)
 
-  writer.add_row(['DLTS collections quarterly report'])
+  writer.add_row(['DLTS collections quarterly report - analytics'])
   writer.add_row(['Year:', "FY#{config[:report_year]}"])
   writer.add_row(['Quarter:', config[:report_qtr]])
   writer.add_row(['Account', 'Property',

@@ -15,7 +15,7 @@ class ReportWriter
     @xls_file = "#{basename}.xls"
     @xls = Spreadsheet::Workbook.new.create_worksheet
     @xls.name = prefix.split(/[ _]/).map {|w| w.capitalize}.join(' ')
-    @xls.name << " #{config[:report_qtr]} #{config[:report_year]}"
+    @xls.name << " FY#{config[:report_year]} #{config[:report_qtr]}"
     @fmt_title   = Spreadsheet::Format.new :align => :center
     @fmt_header  = Spreadsheet::Format.new :underline => :single
     @fmt_link    = Spreadsheet::Format.new :color => :blue,

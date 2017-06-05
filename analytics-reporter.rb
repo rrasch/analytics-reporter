@@ -94,8 +94,8 @@ def get_analytics(service, config)
         next
       end
 
-      query =  "?_u.date00=#{fmt_date_qry(config[:prev_start])}" +
-               "&_u.date01=#{fmt_date_qry(config[:prev_end])}"
+      query =  "?_u.date00=#{fmt_date_qry(config[:start])}" +
+               "&_u.date01=#{fmt_date_qry(config[:end])}"
 
       ga_url = "https://analytics.google.com/analytics/web/" +
                "?authuser=1#report/defaultid/a#{profile.account_id}" +

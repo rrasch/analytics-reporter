@@ -128,6 +128,20 @@ puts "current report file: ", report_file
 prev_totals = parse_report(prev_report_file)
 totals = parse_report(report_file)
 
+reports_by_qtr = {}
+end_qtr = config[:end]
+num_labels = 0
+while !end_qtr.financial_quarter.eql?("Q4 2012")
+  num_labels += 1
+  puts end_qtr
+  puts end_qtr.financial_quarter
+  report_file = get_report_file(end_qtr, install_dir)
+  puts report_file
+  reports_by_qtr[end_qtr.financial_quarter] = parse_report(report_file)
+  end_qtr = end_qtr.previous_financial_quarter.end_of_financial_quarter
+end
+# puts reports_by_qtr
+
 if config[:use_web]
   partners = get_partners(config)
 else
@@ -147,6 +161,28 @@ Dir.mktmpdir(file_prefix) do |tmpdir|
                          'Item count', 'Chg from prev qtr',
                          'Size in GB', 'Chg from prev qtr'])
 
+  trends_writer = ReportWriter.new(config, tmpdir, 'storage_trends_reports')
+
+  trends_writer.add_row(['DLTS collections quarterly report - storage trends'])
+
+  year_labels = ['Year:', "FY#{config[:report_year]}", ""]
+  qtr_labels  = ['Quarter:', config[:report_qtr], ""]
+  end_qtr = config[:end]
+  while !end_qtr.financial_quarter.eql?("Q4 2012")
+    qtr, year = end_qtr.financial_quarter.split
+    year = year.to_i + 1
+    puts "#{year}"
+    year_labels.push("FY#{year}")
+    qtr_labels.push(qtr)
+    end_qtr = end_qtr.previous_financial_quarter.end_of_financial_quarter
+  end
+  trends_writer.add_row(year_labels)
+  trends_writer.add_row(qtr_labels)
+
+  labels = ['Partner', 'Collection', 'Title']
+  labels.concat(Array.new(num_labels, 'Size in GB'))
+  trends_writer.add_row_header(labels)
+
   gigabyte = (10 ** 3) ** 3
 
   totals.sort_by { |k,v| v[:size] }.reverse.each do |key, val|
@@ -165,11 +201,32 @@ Dir.mktmpdir(file_prefix) do |tmpdir|
     data.push(sprintf('%.2f', val[:size].to_f / gigabyte))
     data.push(calc_change(prev_totals, totals, key, :size))
     writer.add_row(data)
+
+    data = []
+    data.push(val[:provider])
+    data.push(val[:collection])
+    data.push(val[:title])
+    end_qtr = config[:end]
+    while !end_qtr.financial_quarter.eql?("Q4 2012")
+      #puts end_qtr.financial_quarter
+      storage_totals = reports_by_qtr[end_qtr.financial_quarter]
+      if storage_totals.has_key?(key)
+        #puts storage_totals[key][:size]
+        data.push(sprintf('%.2f', storage_totals[key][:size].to_f / gigabyte))
+      else
+        data.push("")
+      end
+      end_qtr = end_qtr.previous_financial_quarter.end_of_financial_quarter
+    end
+    trends_writer.add_row(data)
+
   end
 
   writer.close
+  trends_writer.close
 
   Util.mail_and_copy(config, writer.files, 'R* Storage')
+  Util.mail_and_copy(config, trends_writer.files, 'R* Storage Trends')
 
 end
 

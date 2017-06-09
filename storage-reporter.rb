@@ -120,6 +120,13 @@ if config[:use_web]
   end
 end
 
+
+first_report_file =
+  Dir.glob("#{install_dir}/data/*-storage-report.txt").sort.first
+first_report_date =
+  Date.parse(File.basename(first_report_file).split('T').first)
+puts first_report_date
+
 prev_report_file = get_report_file(config[:prev_end], install_dir)
 report_file = get_report_file(config[:end], install_dir)
 puts "previous report file: ", prev_report_file
@@ -131,7 +138,7 @@ totals = parse_report(report_file)
 reports_by_qtr = {}
 end_qtr = config[:end]
 num_labels = 0
-while !end_qtr.financial_quarter.eql?("Q4 2012")
+while end_qtr > first_report_date
   num_labels += 1
   puts end_qtr
   puts end_qtr.financial_quarter
@@ -161,14 +168,14 @@ Dir.mktmpdir(file_prefix) do |tmpdir|
                          'Item count', 'Chg from prev qtr',
                          'Size in GB', 'Chg from prev qtr'])
 
-  trends_writer = ReportWriter.new(config, tmpdir, 'storage_trends_reports')
+  trends_writer = ReportWriter.new(config, tmpdir, 'storage_trends_report')
 
   trends_writer.add_row(['DLTS collections quarterly report - storage trends'])
 
   year_labels = ['Year:', "FY#{config[:report_year]}", ""]
   qtr_labels  = ['Quarter:', config[:report_qtr], ""]
   end_qtr = config[:end]
-  while !end_qtr.financial_quarter.eql?("Q4 2012")
+  while end_qtr > first_report_date
     qtr, year = end_qtr.financial_quarter.split
     year = year.to_i + 1
     puts "#{year}"
@@ -207,7 +214,7 @@ Dir.mktmpdir(file_prefix) do |tmpdir|
     data.push(val[:collection])
     data.push(val[:title])
     end_qtr = config[:end]
-    while !end_qtr.financial_quarter.eql?("Q4 2012")
+    while end_qtr > first_report_date
       #puts end_qtr.financial_quarter
       storage_totals = reports_by_qtr[end_qtr.financial_quarter]
       if storage_totals.has_key?(key)

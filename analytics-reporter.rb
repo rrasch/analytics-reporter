@@ -65,9 +65,9 @@ def calc_percent(r1, r2, col_num)
   #puts "val1=#{val1}"
   #puts "val2=#{val2}"
   if !val1.zero?
-    Util.commify(sprintf('%.2f', ((val2 - val1) / val1) * 100)) + '%'
+    ((val2 - val1) / val1).to_s + '%'
   else
-    'N/A'
+    ''
   end
 end
 

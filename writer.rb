@@ -16,16 +16,28 @@ class ReportWriter
     @xls = Spreadsheet::Workbook.new.create_worksheet
     @xls.name = prefix.split(/[ _]/).map {|w| w.capitalize}.join(' ')
     @xls.name << " FY#{config[:report_year]} #{config[:report_qtr]}"
-    @fmt_title   = Spreadsheet::Format.new :align => :center
-    @fmt_header  = Spreadsheet::Format.new :underline => :single
-    @fmt_link    = Spreadsheet::Format.new :color => :blue,
-                                           :underline => :single
-    @fmt_qtr     = Spreadsheet::Format.new :weight => :bold
-    @fmt_label   = Spreadsheet::Format.new :underline => :single
-    @fmt_num_dec = Spreadsheet::Format.new :color => :red
-    @fmt_num_inc = Spreadsheet::Format.new :color => :green
-    @fmt_num_reg = Spreadsheet::Format.new :color => :black
-    [@fmt_num_dec, @fmt_num_inc, @fmt_num_reg].each do |fmt|
+    @fmt_title    = Spreadsheet::Format.new :align => :center
+    @fmt_header   = Spreadsheet::Format.new :underline => :single
+    @fmt_link     = Spreadsheet::Format.new :color => :blue,
+                                            :underline => :single
+    @fmt_qtr      = Spreadsheet::Format.new :weight => :bold
+    @fmt_label    = Spreadsheet::Format.new :underline => :single
+    @fmt_perc_dec = Spreadsheet::Format.new :color => :red,
+                                            :number_format => '#,##0.00%'
+    @fmt_perc_inc = Spreadsheet::Format.new :color => :green,
+                                            :number_format => '#,##0.00%'
+    @fmt_perc     = Spreadsheet::Format.new :color => :black,
+                                            :number_format => '#,##0.00%'
+    @fmt_dec      = Spreadsheet::Format.new :color => :black,
+                                            :number_format => '#,##0.00'
+    @fmt_int      = Spreadsheet::Format.new :color => :black,
+                                            :number_format => '#,##0'
+
+    #fmt_perc_str = '[Green]#,##0.00%;[Red]-#,##0.00%;0.00%'
+    #@fmt_perc    = Spreadsheet::Format.new :number_format => fmt_perc_str
+
+    [@fmt_perc_dec, @fmt_perc_inc, @fmt_perc,
+        @fmt_dec, @fmt_int].each do |fmt|
       fmt.align = :right
       fmt.font.weight = :bold
     end
@@ -45,22 +57,26 @@ class ReportWriter
         row[i] = val[1]
         fmt = @fmt_link
       else
+        cell_val = val
         val_str = val.to_s
         if val_str =~ /^(.*)%$/
           percent = $1.to_f
           if percent < 0
-            fmt = @fmt_num_dec
+            fmt = @fmt_perc_dec
           elsif percent > 0
-            fmt = @fmt_num_inc
+            fmt = @fmt_perc_inc
           else
-            fmt = @fmt_num_reg
+            fmt = @fmt_perc
           end
-          val_str = Util.commify(val_str)
-        elsif val_str =~ /^(\d+(\.\d+)?|N\/A)$/
-          fmt = @fmt_num_reg
-          val_str = Util.commify(val_str)
+          cell_val = percent
+        elsif val_str =~ /^\d+\.\d+$/
+          fmt = @fmt_dec
+          cell_val = val_str.to_f
+        elsif val_str =~ /^\d+$/
+          fmt = @fmt_int
+          cell_val = val_str.to_i
         end
-        @xls[row_num, i] = val_str
+        @xls[row_num, i] = cell_val
       end
       @xls.row(row_num).set_format(i, fmt) if fmt
     end

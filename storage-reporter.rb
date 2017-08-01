@@ -79,9 +79,9 @@ def calc_change(t1, t2, k1, k2)
     val1 = t1[k1][k2].to_f
     val2 = t2[k1][k2].to_f
     #puts "val1=#{val1} val2=#{val2}"
-    Util.commify(sprintf('%.2f', ((val2 - val1) / val1) * 100)) + '%'
+    ((val2 - val1) / val1).to_s + '%'
   else
-    return 'N/A'
+    return ''
   end
 end
 

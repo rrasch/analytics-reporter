@@ -116,7 +116,11 @@ if config[:use_web]
       Util.do_cmd('git pull')
     end
   else
-    Util.do_cmd("git clone '#{config[:report_repo]}' #{install_dir}")
+    report_repo = config[:report_repo]
+    if !report_repo.end_with?('.git')
+      report_repo += '.git'
+    end
+    Util.do_cmd("git clone '#{report_repo}' #{install_dir}")
   end
 end
 

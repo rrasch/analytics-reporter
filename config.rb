@@ -14,7 +14,9 @@ class ReportConfig
       :output_dir => Dir.home,
     }
 
-    yml = YAML.load_file('config.yaml')
+    conf_dir = File.dirname(File.expand_path(__FILE__))
+
+    yml = YAML.load_file(File.join(conf_dir, 'config.yaml'))
 
     config.merge!(yml)
 

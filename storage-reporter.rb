@@ -19,6 +19,9 @@ require_relative './writer'
 
 def parse_report(report_file)
   totals = Hash.new
+  if report_file.nil?
+    return totals
+  end
   totals[:all] = {
                    :size       => 0,
                    :num_files  => 0,
@@ -70,7 +73,7 @@ def get_report_file(end_qtr, report_dir)
   report_date = Chronic.parse('last sunday',
                               :now => end_qtr.next_financial_quarter)
   date_expr = report_date.strftime('%Y%m%d')
-  Dir.glob("#{report_dir}/data/#{date_expr}*.txt").first
+  Dir.glob("#{report_dir}/data/#{date_expr}*-preservation-*.txt").first
 end
 
 
@@ -126,7 +129,7 @@ end
 
 
 first_report_file =
-  Dir.glob("#{install_dir}/data/*-storage-report.txt").sort.first
+  Dir.glob("#{install_dir}/data/*-preservation-storage-report.txt").sort.first
 first_report_date =
   Date.parse(File.basename(first_report_file).split('T').first)
 puts first_report_date

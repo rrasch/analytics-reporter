@@ -73,7 +73,11 @@ def get_report_file(end_qtr, report_dir)
   report_date = Chronic.parse('last sunday',
                               :now => end_qtr.next_financial_quarter)
   date_expr = report_date.strftime('%Y%m%d')
-  Dir.glob("#{report_dir}/data/#{date_expr}*-preservation-*.txt").first
+  reports = Dir.glob("#{report_dir}/data/#{date_expr}*-preservation-*.txt")
+  if reports.empty?
+    raise "Can't find report file for #{date_expr}"
+  end
+  return reports.first
 end
 
 
@@ -147,8 +151,8 @@ end_qtr = config[:end]
 num_labels = 0
 while end_qtr > first_report_date
   num_labels += 1
-  puts end_qtr
-  puts end_qtr.financial_quarter
+  puts "end_qtr: #{end_qtr}"
+  puts "end_qtr.financial_quarter: #{end_qtr.financial_quarter}"
   report_file = get_report_file(end_qtr, install_dir)
   puts report_file
   reports_by_qtr[end_qtr.financial_quarter] = parse_report(report_file)
@@ -185,7 +189,7 @@ Dir.mktmpdir(file_prefix) do |tmpdir|
   while end_qtr > first_report_date
     qtr, year = end_qtr.financial_quarter.split
     year = year.to_i + 1
-    puts "#{year}"
+    puts "year: #{year}"
     year_labels.push("FY#{year}")
     qtr_labels.push(qtr)
     end_qtr = end_qtr.previous_financial_quarter.end_of_financial_quarter

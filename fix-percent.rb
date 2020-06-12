@@ -15,7 +15,7 @@ csv_files.each do |csv_file|
   backup_file = "#{csv_file}.bak"
   CSV.open(fixed_file, "w+") do |fixed_csv|
     CSV.foreach(csv_file) do |row|
-      fix_row = true if row[0] == "All"
+      fix_row = true if row[0] =~ /^all$/i
       if fix_row
         #orig_row = row.clone
         1.upto(row.size - 1) do |i|

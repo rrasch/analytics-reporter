@@ -69,7 +69,7 @@ class ReportWriter
             fmt = @fmt_perc
           end
           cell_val = percent
-          row[i] = (percent * 100).round(3)
+          row[i] = (percent * 100).round(3).to_s + '%'
         elsif val_str =~ /^\d+\.\d+$/
           fmt = @fmt_dec
           cell_val = val_str.to_f

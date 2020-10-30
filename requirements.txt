@@ -1,0 +1,9 @@
+fiscalyear
+geonamescache
+geopandas
+google-api-python-client
+matplotlib
+numpy
+pandas
+pycountry
+slugify

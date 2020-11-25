@@ -1,4 +1,5 @@
 dateparser
+descartes
 fiscalyear
 geonamescache
 geopandas

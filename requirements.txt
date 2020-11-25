@@ -1,9 +1,11 @@
+dateparser
 fiscalyear
 geonamescache
 geopandas
 google-api-python-client
-matplotlib
+matplotlib==3.2.2
 numpy
+oauth2client
 pandas
 pycountry
 slugify

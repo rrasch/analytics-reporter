@@ -200,7 +200,7 @@ def main():
     # Authenticate and construct service.
     service = get_service('analytics', 'v3', scope, 'client_secrets.json')
 
-    profile_ids = get_profile_ids(service, args.account)
+    profile_ids = get_profile_ids(service, args.account_list)
     pprint.pprint(profile_ids)
 
     total = pd.DataFrame()

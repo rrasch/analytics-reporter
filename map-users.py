@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-
+#
+# https://developers.google.com/analytics/devguides/config/mgmt/v3/quickstart/service-py
+# https://stackoverflow.com/questions/59840150/google-analytics-data-to-pandas-dataframe
 
 import httplib2
 from apiclient.discovery import build
@@ -107,7 +109,8 @@ def get_profile_ids(service, account_list=None):
 
 def get_results(service, profile_id, start_date, end_date):
     # Use the Analytics Service Object to query the Core Reporting API
-    # for the number of sessions in the past seven days.
+    # for the number of sessions, users, and pageviews from
+    # start_date to end_date.
     return service.data().ga().get(
             ids='ga:' + profile_id,
             start_date=start_date,
@@ -145,8 +148,8 @@ def main():
 
     fy.setup_fiscal_calendar(start_month=9)
     now = fy.FiscalDateTime.now()
-    start_date = now.prev_quarter.start.strftime('%Y-%m-%d')
-    end_date = now.prev_quarter.end.strftime('%Y-%m-%d')
+    start_date = now.prev_fiscal_quarter.start.strftime('%Y-%m-%d')
+    end_date = now.prev_fiscal_quarter.end.strftime('%Y-%m-%d')
     print(start_date)
     print(end_date)
 

@@ -168,7 +168,12 @@ def main():
     parser.add_argument("-e", "--end-date",
         default=end_date,
         help="End date")
+    parser.add_argument("-a", "--account-list",
+        type=lambda arg: arg.split(','),
+        help="Comma separated list of ga accounts")
     args = parser.parse_args()
+
+    pprint.pprint(args)
 
     if args.start_date != start_date:
         args.start_date = parse_date(args.start_date)
@@ -195,7 +200,7 @@ def main():
     # Authenticate and construct service.
     service = get_service('analytics', 'v3', scope, 'client_secrets.json')
 
-    profile_ids = get_profile_ids(service)
+    profile_ids = get_profile_ids(service, args.account)
     pprint.pprint(profile_ids)
 
     total = pd.DataFrame()

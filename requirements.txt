@@ -4,6 +4,7 @@ fiscalyear
 geonamescache
 geopandas
 google-api-python-client
+mapclassify
 matplotlib==3.2.2
 numpy
 oauth2client

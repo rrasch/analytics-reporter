@@ -1,17 +1,35 @@
 #!/usr/bin/env python3
 
 import pandas as pd
+import plotly.data as dt
 import plotly.graph_objects as go
 
-df = pd.read_csv("sessions.csv")
+pd.set_option(
+    "display.max_columns", None,
+    "display.max_rows", None,
+    "display.width", 0
+)
+
+sessions = pd.read_csv("sessions.csv", index_col="iso3")
+
+countries = dt.gapminder().query("year==2007").reset_index()
+countries = countries.loc[:, ["iso_alpha", "country"]]
+countries = countries.set_index("iso_alpha")
+
+# df = pd.merge(
+#     sessions, countries, how="outer", left_index=True, right_index=True
+# )
+df = sessions.join(countries, how="outer")
+df["country"] = df["country"].fillna("Unknown")
+df = df.fillna(0)
 
 metric = "pageviews"
 
 fig = go.Figure(
     data=go.Choropleth(
-        locations=df["iso3"],
+        locations=df.index,
         z=df[metric],
-        text=df["iso3"],
+        text=df["country"],
         colorscale="Reds",
         autocolorscale=False,
         reversescale=True,

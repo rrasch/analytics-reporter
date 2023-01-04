@@ -24,6 +24,12 @@ df = df.fillna(0)
 
 df = df.sort_values(by=[metric], ascending=False)
 
+title = {
+    "pageviews": "Views",
+    "sessions": "Sessions",
+    "users": "Users",
+}
+
 fig = go.Figure(
     data=go.Choropleth(
         locations=df.index,
@@ -36,7 +42,7 @@ fig = go.Figure(
         marker_line_color="darkgray",
         marker_line_width=0.5,
         colorbar_tickprefix="",
-        colorbar_title=metric,
+        colorbar_title=title[metric],
     )
 )
 
@@ -51,18 +57,27 @@ fig.add_trace(
     )
 )
 
+
+annotation_text = f"Top ten countries for {title[metric]}:<br>"
+for i in range(0, 10):
+    annotation_text += f"<br>{i+1}. {labels[i]}"
+
 fig.update_layout(
-    title_text=metric,
+    title_text=f"{title[metric]}",
     geo=dict(
-        showframe=False, showcoastlines=False, projection_type="equirectangular"
+        showframe=True, showcoastlines=True, projection_type="equirectangular"
     ),
     annotations=[
         dict(
-            x=0.55,
-            y=0.1,
+            x=0.15,
+            y=0.35,
             xref="paper",
             yref="paper",
-            text="",
+            align="left",
+            font=dict(
+                size=14,
+            ),
+            text=annotation_text,
             showarrow=False,
         )
     ],

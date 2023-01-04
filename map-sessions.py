@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 
+import fiscalyear as fy
 import pandas as pd
 import plotly.graph_objects as go
 import pycountry
+import re
+
+fy.setup_fiscal_calendar(start_month=9)
 
 pd.set_option(
     "display.max_columns", None,
@@ -12,7 +16,25 @@ pd.set_option(
 
 metric = "pageviews"
 
-sessions = pd.read_csv("sessions.csv", index_col="iso3")
+def get_date_range(file):
+    now = fy.FiscalDateTime.now()
+    found = re.search(r"_Q([1-4])_(\d{4}).csv$", file, flags=re.IGNORECASE)
+    if found:
+        qtr = int(found.group(1))
+        year = int(found.group(2))
+        fiscal_qtr = fy.FiscalQuarter(year, qtr)
+        return (
+            fiscal_qtr.start.strftime("%B %Y")
+            + " to "
+            + fiscal_qtr.end.strftime("%B %Y")
+        )
+
+
+csv_file = "sessions_q1_2023.csv"
+
+date_range = get_date_range(csv_file)
+
+sessions = pd.read_csv(csv_file, index_col="iso3")
 
 countries = [[country.alpha_3, country.name] for country in pycountry.countries]
 countries = pd.DataFrame(countries, columns=['iso3', 'name'])
@@ -63,7 +85,7 @@ for i in range(0, 10):
     annotation_text += f"<br>{i+1}. {labels[i]}"
 
 fig.update_layout(
-    title_text=f"{title[metric]}",
+    title_text=f"{title[metric]} by Country for {date_range}",
     geo=dict(
         showframe=True, showcoastlines=True, projection_type="equirectangular"
     ),

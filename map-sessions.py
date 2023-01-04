@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 
 import pandas as pd
-import plotly.data as dt
 import plotly.graph_objects as go
+import pycountry
 
 pd.set_option(
     "display.max_columns", None,
@@ -10,26 +10,25 @@ pd.set_option(
     "display.width", 0
 )
 
+metric = "pageviews"
+
 sessions = pd.read_csv("sessions.csv", index_col="iso3")
 
-countries = dt.gapminder().query("year==2007").reset_index()
-countries = countries.loc[:, ["iso_alpha", "country"]]
-countries = countries.set_index("iso_alpha")
+countries = [[country.alpha_3, country.name] for country in pycountry.countries]
+countries = pd.DataFrame(countries, columns=['iso3', 'name'])
+countries = countries.set_index("iso3")
 
-# df = pd.merge(
-#     sessions, countries, how="outer", left_index=True, right_index=True
-# )
 df = sessions.join(countries, how="outer")
-df["country"] = df["country"].fillna("Unknown")
+
 df = df.fillna(0)
 
-metric = "pageviews"
+df = df.sort_values(by=[metric], ascending=False)
 
 fig = go.Figure(
     data=go.Choropleth(
         locations=df.index,
         z=df[metric],
-        text=df["country"],
+        text=df["name"],
         colorscale="Reds",
         autocolorscale=False,
         reversescale=True,
@@ -37,6 +36,16 @@ fig = go.Figure(
         marker_line_width=0.5,
         colorbar_tickprefix="",
         colorbar_title=metric,
+    )
+)
+
+labels = [name if i < 10 else None for i, name in enumerate(df["name"])]
+
+fig.add_trace(
+    go.Scattergeo(
+        locations=df.index,
+        text=labels,
+        mode="text",
     )
 )
 

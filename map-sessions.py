@@ -29,6 +29,7 @@ fig = go.Figure(
         locations=df.index,
         z=df[metric],
         text=df["name"],
+        hovertemplate="<b>%{text}</b><br>%{z}",
         colorscale="Reds",
         autocolorscale=False,
         reversescale=True,
@@ -46,6 +47,7 @@ fig.add_trace(
         locations=df.index,
         text=labels,
         mode="text",
+        hoverinfo="skip",
     )
 )
 

@@ -3,18 +3,15 @@
 # https://developers.google.com/analytics/devguides/config/mgmt/v3/quickstart/service-py
 # https://stackoverflow.com/questions/59840150/google-analytics-data-to-pandas-dataframe
 
-import httplib2
 from apiclient.discovery import build
+from geonamescache.mappers import country
 from oauth2client import client
 from oauth2client import file
 from oauth2client import tools
-
-from geonamescache import GeonamesCache
-from geonamescache.mappers import country
-
 import argparse
 import dateparser
 import fiscalyear as fy
+import httplib2
 import logging
 import os.path
 import pandas as pd
@@ -86,7 +83,7 @@ def get_profile_ids(service, account_list=None):
 
     for account in accounts.get('items'):
         name = account.get('name')
-        print(name)
+        print(f"Account: {name}")
 
         if account_list and name not in account_list:
             continue
@@ -101,7 +98,7 @@ def get_profile_ids(service, account_list=None):
         for profile in profiles.get('items'):
             if "master view" not in profile.get('name'):
                 continue
-            print(profile.get('name'))
+            print(f"    Profile: {profile.get('name')}")
             profile_ids.append(profile.get('id'))
 
     return profile_ids
@@ -121,7 +118,11 @@ def get_results(service, profile_id, start_date, end_date):
 
 
 def conv_iso_2_to_3(iso_2):
-    return countries[iso_2]['iso3']
+    # return countries[iso_2]['iso3']
+    if iso_2 == "ZZ":
+        return "ZZZ"
+    else:
+        return country(from_key='iso', to_key='iso3')(iso_2)
 
 
 def set_int(df):
@@ -150,8 +151,6 @@ def main():
     now = fy.FiscalDateTime.now()
     start_date = now.prev_fiscal_quarter.start.strftime('%Y-%m-%d')
     end_date = now.prev_fiscal_quarter.end.strftime('%Y-%m-%d')
-    print(start_date)
-    print(end_date)
 
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -160,7 +159,6 @@ def main():
         help="Enable debugging messages", action="store_true")
     parser.add_argument("output_file", metavar="OUTPUT_FILE",
         nargs="?",
-        default="sessions.csv",
         help="Output CSV file")
     parser.add_argument("-s", "--start-date",
         default=start_date,
@@ -173,27 +171,27 @@ def main():
         help="Comma separated list of ga accounts")
     args = parser.parse_args()
 
-    pprint.pprint(args)
+    pprint.pprint(f"command line args: {args}")
 
     if args.start_date != start_date:
-        args.start_date = parse_date(args.start_date)
-        print(args.start_date)
+        start_date = parse_date(args.start_date)
 
     if args.end_date != end_date:
-        args.end_date = parse_date(args.end_date)
-        print(args.end_date)
+        end_date = parse_date(args.end_date)
+
+    if args.output_file:
+        output_file = args.output_file
+    else:
+        output_file = f"sessions_{start_date}_{end_date}.csv"
+
+    print(f"start date: {start_date}")
+    print(f"end date: {end_date}")
+    print(f"output_file: {output_file}")
 
     pd.set_option('display.max_columns', None)
     pd.set_option('display.max_rows', None)
     pd.set_option('display.max_colwidth', None)
     # pd.set_option('display.float_format', '{:,.0f}'.format)
-
-    gc = GeonamesCache()
-    global countries
-    countries = gc.get_countries()
-    countries['ZZ'] = {'iso3': 'ZZZ'}
-
-    mapper = country(from_key='iso', to_key='iso3')
 
     scope = ['https://www.googleapis.com/auth/analytics.readonly']
 
@@ -201,17 +199,15 @@ def main():
     service = get_service('analytics', 'v3', scope, 'client_secrets.json')
 
     profile_ids = get_profile_ids(service, args.account_list)
+    print("profile ids:")
     pprint.pprint(profile_ids)
 
     total = pd.DataFrame()
 
     for profile_id in profile_ids:
-        results = get_results(service, profile_id,
-            args.start_date, args.end_date)
+        results = get_results(service, profile_id, start_date, end_date)
         df = create_dataframe(results)
-        with pd.option_context('display.max_rows', None,
-                'display.max_columns', None):
-            print(df)
+        print(df)
         total = total.add(df, fill_value=0)
 
     total.index = [conv_iso_2_to_3(i) for i in total.index]
@@ -219,9 +215,7 @@ def main():
     total.columns = [re.sub(r'^ga:', '', col) for col in total.columns]
     set_int(total)
 
-    total.to_csv(args.output_file)
-
-    #print(total)
+    total.to_csv(output_file)
 
 if __name__ == '__main__':
     main()

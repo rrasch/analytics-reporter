@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 
+from datetime import datetime
+import argparse
 import fiscalyear as fy
 import pandas as pd
 import plotly.graph_objects as go
 import pycountry
 import re
+
 
 fy.setup_fiscal_calendar(start_month=9)
 
@@ -14,27 +17,47 @@ pd.set_option(
     "display.width", 0
 )
 
-metric = "pageviews"
+
+def convert_date(date_str):
+    return datetime.strptime(date_str, "%Y-%m-%d").strftime("%B %Y")
 
 def get_date_range(file):
-    now = fy.FiscalDateTime.now()
-    found = re.search(r"_Q([1-4])_(\d{4}).csv$", file, flags=re.IGNORECASE)
-    if found:
-        qtr = int(found.group(1))
-        year = int(found.group(2))
+    flags = re.IGNORECASE
+    mtch = re.search(r"_Q([1-4])_(\d{4}).csv$", file, flags)
+    if mtch:
+        qtr = int(mtch.group(1))
+        year = int(mtch.group(2))
         fiscal_qtr = fy.FiscalQuarter(year, qtr)
         return (
             fiscal_qtr.start.strftime("%B %Y")
             + " to "
             + fiscal_qtr.end.strftime("%B %Y")
         )
+    mtch = re.search(
+        r"_(\d{4}-\d{2}-\d{2})_(\d{4}-\d{2}-\d{2}).csv", file, flags)
+    if mtch:
+        return (
+            convert_date(mtch.group(1))
+            + " to "
+            + convert_date(mtch.group(2))
+        )
+    raise ValueError("Can't extract date range from {file}")
 
 
-csv_file = "sessions_q1_2023.csv"
+parser = argparse.ArgumentParser(
+    formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    description="Plot data from csv using plotly.")
+parser.add_argument("csv_file", help="Input CSV file")
+parser.add_argument("html_file", nargs="?",
+    help="Output HTML file")
+parser.add_argument("--metric", "-m", default="pageviews",
+    choices=["sessions", "users" , "pageviews"],
+    help="GA metric to be displayed")
+args = parser.parse_args()
 
-date_range = get_date_range(csv_file)
+date_range = get_date_range(args.csv_file)
 
-sessions = pd.read_csv(csv_file, index_col="iso3")
+sessions = pd.read_csv(args.csv_file, index_col="iso3")
 
 countries = [[country.alpha_3, country.name] for country in pycountry.countries]
 countries = pd.DataFrame(countries, columns=['iso3', 'name'])
@@ -44,7 +67,7 @@ df = sessions.join(countries, how="outer")
 
 df = df.fillna(0)
 
-df = df.sort_values(by=[metric], ascending=False)
+df = df.sort_values(by=[args.metric], ascending=False)
 
 title = {
     "pageviews": "Views",
@@ -55,16 +78,16 @@ title = {
 fig = go.Figure(
     data=go.Choropleth(
         locations=df.index,
-        z=df[metric],
+        z=df[args.metric],
         text=df["name"],
-        hovertemplate="<b>%{text}</b><br>%{z}",
+        hovertemplate="<b>%{text}</b><br>%{z}<extra></extra>",
         colorscale="Reds",
-        autocolorscale=False,
-        reversescale=True,
+        autocolorscale=True,
+        reversescale=False,
         marker_line_color="darkgray",
         marker_line_width=0.5,
         colorbar_tickprefix="",
-        colorbar_title=title[metric],
+        colorbar_title=title[args.metric],
     )
 )
 
@@ -80,12 +103,12 @@ fig.add_trace(
 )
 
 
-annotation_text = f"Top ten countries for {title[metric]}:<br>"
+annotation_text = f"Top ten countries for {title[args.metric]}:<br>"
 for i in range(0, 10):
     annotation_text += f"<br>{i+1}. {labels[i]}"
 
 fig.update_layout(
-    title_text=f"{title[metric]} by Country for {date_range}",
+    title_text=f"{title[args.metric]} by Country for {date_range}",
     geo=dict(
         showframe=True, showcoastlines=True, projection_type="equirectangular"
     ),
@@ -106,4 +129,4 @@ fig.update_layout(
 )
 
 fig.show()
-fig.write_html(f"{metric}.html")
+fig.write_html(f"{args.metric}.html")

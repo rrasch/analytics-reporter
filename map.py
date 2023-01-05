@@ -86,8 +86,6 @@ print(ga_data.sample(5))
 # from the describe method.
 df = ne_data.merge(ga_data, left_on="ISO_A3", right_on="iso3", how="left")
 
-# df = df.sort_values(by=[args.metric], ascending=False)
-
 # The merge operation above returned a GeoDataFrame. From this data
 # structure it is very easy to create a choropleth map by invoking the
 # plot method. We need to specify the column to plot and since we
@@ -134,6 +132,20 @@ ax.tick_params(bottom=False, labelbottom=False, left=False, labelleft=False)
 ax.set_title(title, fontdict={'fontsize': 20}, loc='center', pad=12)
 # ax.annotate(description, xy=(0.1, 0.1), size=12, xycoords='figure fraction')
 # #ax.text(0.5, -0.1, description, size=12, ha='center', va='baseline', transform=ax.transAxes, wrap=True)
+
+df["coords"] = df["geometry"].apply(lambda x: x.representative_point().coords[0])
+df["area"] = df["geometry"].area
+
+df = df.sort_values(by="area", ascending=False)
+
+df.head(20).apply(
+    lambda x: ax.annotate(
+        text=f"{x['NAME']}\n{human_format(x['pageviews'])}",
+        xy=x.coords,
+        horizontalalignment="center",
+    ),
+    axis=1,
+)
 
 plt.show()
 

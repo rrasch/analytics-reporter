@@ -138,11 +138,12 @@ df["area"] = df["geometry"].area
 
 df = df.sort_values(by="area", ascending=False)
 
-df.head(20).apply(
+df.head(25).apply(
     lambda x: ax.annotate(
         text=f"{x['NAME']}\n{human_format(x['pageviews'])}",
         xy=x.coords,
         horizontalalignment="center",
+        verticalalignment="center",
     ),
     axis=1,
 )

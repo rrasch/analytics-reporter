@@ -4,6 +4,9 @@
 # https://stackoverflow.com/questions/59840150/google-analytics-data-to-pandas-dataframe
 
 from apiclient.discovery import build
+from email.mime.application import MIMEApplication
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from geonamescache.mappers import country
 from oauth2client import client
 from oauth2client import file
@@ -15,8 +18,11 @@ import httplib2
 import logging
 import os.path
 import pandas as pd
+import plot_interactive_map as pim
+import plot_static_map as psm
 import pprint
 import re
+import smtplib
 import sys
 import yaml
 
@@ -146,7 +152,68 @@ def parse_date(date):
     return dateparser.parse(date).strftime('%Y-%m-%d')
 
 
+def get_analytics(account_list, start_date, end_date, output_file):
+    scope = ['https://www.googleapis.com/auth/analytics.readonly']
+
+    # Authenticate and construct service.
+    service = get_service('analytics', 'v3', scope, 'client_secrets.json')
+
+    profile_ids = get_profile_ids(service, account_list)
+    print("profile ids:")
+    pprint.pprint(profile_ids)
+
+    total = pd.DataFrame()
+
+    for profile_id in profile_ids:
+        results = get_results(service, profile_id, start_date, end_date)
+        df = create_dataframe(results)
+        print(df)
+        total = total.add(df, fill_value=0)
+
+    total.index = [conv_iso_2_to_3(i) for i in total.index]
+    total.index.name = 'iso3'
+    total.columns = [re.sub(r'^ga:', '', col) for col in total.columns]
+    set_int(total)
+
+    total.to_csv(output_file)
+
+
+def change_ext(filename, new_ext):
+    basename, ext = os.path.splitext(filename)
+    return f"{basename}.{new_ext}"
+
+
+def sendmail(mailfrom, mailto, attachments):
+    msg = MIMEMultipart()
+    msg["From"] = mailfrom
+    msg["To"] = ", ".join(mailto)
+    msg["Subject"] = "Maps"
+
+    body = "Maps:\n\n"
+
+    msg.attach(MIMEText(body))
+
+    for attachment in attachments:
+        basename = os.path.basename(attachment)
+        with open(attachment, "rb") as f:
+            part = MIMEApplication(f.read(), Name=basename)
+        part["Content-Disposition"] = f"attachment; filename={basename}"
+        msg.attach(part)
+
+    try:
+        smtp = smtplib.SMTP("localhost")
+        smtp.sendmail(mailfrom, mailto, msg.as_string())
+        print("Sent email.")
+    except Exception as e:
+        print(f"Could not send mail: {e}")
+
+
 def main():
+    pd.set_option('display.max_columns', None)
+    pd.set_option('display.max_rows', None)
+    pd.set_option('display.max_colwidth', None)
+    # pd.set_option('display.float_format', '{:,.0f}'.format)
+
     with open("config.yaml") as f:
         config = yaml.safe_load(f)
     config = {k.lstrip(":"): v for k, v in config.items()}
@@ -201,40 +268,21 @@ def main():
 
     if os.path.isfile(output_file):
         print(f"Output file {output_file} already exists.")
-        exit(0)
+    else:
+        if not (os.path.isdir(output_dir) and os.access(output_dir, os.W_OK)):
+            print(f"{output_dir} is not a writable directory.")
+            exit(1)
+        get_analytics(args.account_list, start_date, end_date, output_file)
 
-    if not (os.path.isdir(output_dir) and os.access(output_dir, os.W_OK)):
-        print(f"{output_dir} is not a writable directory.")
-        exit(1)
+    html_file = change_ext(output_file, "html")
+    if not os.path.isfile(html_file):
+        pim.plot_interactive("pageviews", output_file, html_file)
 
-    pd.set_option('display.max_columns', None)
-    pd.set_option('display.max_rows', None)
-    pd.set_option('display.max_colwidth', None)
-    # pd.set_option('display.float_format', '{:,.0f}'.format)
+    img_file = change_ext(output_file, "jpg")
+    if not os.path.isfile(img_file):
+        psm.plot_static("pageviews", output_file, img_file)
 
-    scope = ['https://www.googleapis.com/auth/analytics.readonly']
-
-    # Authenticate and construct service.
-    service = get_service('analytics', 'v3', scope, 'client_secrets.json')
-
-    profile_ids = get_profile_ids(service, args.account_list)
-    print("profile ids:")
-    pprint.pprint(profile_ids)
-
-    total = pd.DataFrame()
-
-    for profile_id in profile_ids:
-        results = get_results(service, profile_id, start_date, end_date)
-        df = create_dataframe(results)
-        print(df)
-        total = total.add(df, fill_value=0)
-
-    total.index = [conv_iso_2_to_3(i) for i in total.index]
-    total.index.name = 'iso3'
-    total.columns = [re.sub(r'^ga:', '', col) for col in total.columns]
-    set_int(total)
-
-    total.to_csv(output_file)
+    sendmail(config["mailfrom"], config["mailto"], [img_file])
 
 if __name__ == '__main__':
     main()

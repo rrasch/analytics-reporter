@@ -4,10 +4,14 @@ fiscalyear
 geonamescache
 geopandas
 google-api-python-client
+httplib2
 mapclassify
-matplotlib==3.2.2
+matplotlib
 numpy
 oauth2client
 pandas
+plotly
 pycountry
+PyYAML
+Shapely
 slugify

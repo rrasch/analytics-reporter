@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from mpl_toolkits.axes_grid1 import make_axes_locatable
+# from mpl_toolkits.axes_grid1 import make_axes_locatable
 from slugify import slugify
 import argparse
 import geopandas as gpd
@@ -8,20 +8,8 @@ import matplotlib.pyplot as plt
 import os
 import pandas as pd
 import re
+import sys
 
-
-shapefile = os.path.join(
-    os.path.expanduser("~"),
-    "Downloads",
-    "ne_10m_admin_0_map_units",
-    "ne_10m_admin_0_map_units.shp",
-)
-
-pd.set_option(
-    "display.max_columns", None,
-    "display.max_rows", None,
-    "display.width", 0
-)
 
 def human_format(num):
     num = float("{:.3g}".format(num))
@@ -34,119 +22,158 @@ def human_format(num):
         ["", "K", "M", "B", "T"][magnitude],
     )
 
-color_steps = 9
-color_map = 'OrRd'
-# figure in inches (width, height)
-figsize = (16, 10)
-color_water = "lightskyblue"
-description = "Description"
 
-f, ax = plt.subplots(figsize=figsize, edgecolor="black")
-#ax.set_aspect('equal')
-ax.set_facecolor(color_water)
-# divider = make_axes_locatable(ax)
-# cax = divider.append_axes("right", size="5%", pad=0.1)
+def plot_static(metric, csv_file, img_file):
+    shapefile = os.path.join(
+        os.path.expanduser("~"),
+        "Downloads",
+        "ne_10m_admin_0_map_units",
+        "ne_10m_admin_0_map_units.shp",
+    )
 
-# Create a GeoDataFrame from the Admin 0 - Countries shapefile
-# available from Natural Earth Data and show a sample of 5 records.
-# We only read the ADM0_A3 and geometry columns, which contain the
-# 3-letter country codes defined in ISO 3166-1 alpha-3 and the
-# country shapes as polygons respectively.
-ne_cols = ['ISO_A3', 'NAME', 'NAME_LONG', 'geometry']
-ne_data = gpd.read_file(shapefile)
-ne_data = ne_data[ne_cols]
-ne_data = ne_data.to_crs('+proj=robin')
+    color_steps = 9
+    color_map = "OrRd"
+    # figure in inches (width, height)
+    figsize = (16, 10)
+    color_water = "lightskyblue"
+    description = "Description"
 
-# ne_data = gpd.read_file(gpd.datasets.get_path("naturalearth_lowres"))
-# ne.data = ne_data[list(map(str.lower, ne_cols))]
+    f, ax = plt.subplots(figsize=figsize, edgecolor="black")
+    # ax.set_aspect('equal')
+    ax.set_facecolor(color_water)
+    # divider = make_axes_locatable(ax)
+    # cax = divider.append_axes("right", size="5%", pad=0.1)
 
-# ne_data.plot(ax=ax, color='white', edgecolor=None, linewidth=1)
+    # Create a GeoDataFrame from the Admin 0 - Countries shapefile
+    # available from Natural Earth Data and show a sample of 5 records.
+    # We only read the ADM0_A3 and geometry columns, which contain the
+    # 3-letter country codes defined in ISO 3166-1 alpha-3 and the
+    # country shapes as polygons respectively.
+    ne_cols = ["ISO_A3", "NAME", "NAME_LONG", "geometry"]
+    ne_data = gpd.read_file(shapefile)
+    ne_data = ne_data[ne_cols]
+    ne_data = ne_data.to_crs("+proj=robin")
 
-parser = argparse.ArgumentParser(
-    formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-    description="Plot data from csv.")
-parser.add_argument("csv_file", help="Input CSV file")
-parser.add_argument("img_file", nargs="?",
-    help="Output image file")
-parser.add_argument("--metric", "-m", default="pageviews",
-    choices=["sessions", "users" , "pageviews"],
-    help="GA metric to be displayed")
-args = parser.parse_args()
+    # ne_data = gpd.read_file(gpd.datasets.get_path("naturalearth_lowres"))
+    # ne.data = ne_data[list(map(str.lower, ne_cols))]
 
-title = f"{args.metric.title()} by country".title()
+    # ne_data.plot(ax=ax, color='white', edgecolor=None, linewidth=1)
 
-img_file = args.img_file if args.img_file else f"{slugify(title)}"
+    title = f"{metric.title()} by country".title()
 
-# Read google analytics data into dataframe
-ga_data = pd.read_csv(args.csv_file)
-print(ga_data.sample(5))
+    if not img_file:
+        img_file = "{slugify(title)}.jpg"
 
-# Next we merge the data frames on the columns containing the
-# 3-letter country codes and show summary statistics as returned
-# from the describe method.
-df = ne_data.merge(ga_data, left_on="ISO_A3", right_on="iso3", how="left")
+    # Read google analytics data into dataframe
+    ga_data = pd.read_csv(csv_file)
+    print(ga_data.sample(5))
 
-# The merge operation above returned a GeoDataFrame. From this data
-# structure it is very easy to create a choropleth map by invoking the
-# plot method. We need to specify the column to plot and since we
-# don't want a continuous color scale we set scheme to equal_interval
-# and the number of classes k to 9. We also set the size of the figure
-# and show a legend in the plot.
-df.plot(
-    ax=ax,
-    # cax=cax,
-    figsize=figsize,
-    column=args.metric,
-    cmap=color_map,
-    edgecolor="black",
-    linewidth=0.1,
-    scheme="equal_interval",
-    # scheme="percentiles",
-    # scheme="quantiles",
-    k=color_steps,
-    legend=True,
-    legend_kwds={
-        "loc": "lower left",
-        "fmt": "{:.0f}",
-        "title": f"{args.metric.title()}",
-        "frameon": False,
-    },
-    missing_kwds={
-        "color": "lightgrey",
-        "edgecolor": "red",
-        "hatch": "///",
-        "label": "No values recorded",
-    },
-)
+    # Next we merge the data frames on the columns containing the
+    # 3-letter country codes and show summary statistics as returned
+    # from the describe method.
+    df = ne_data.merge(ga_data, left_on="ISO_A3", right_on="iso3", how="left")
 
-legend = ax.get_legend()
-legend_texts = legend.get_texts()
-for i, label_text in enumerate(legend_texts[:-1]):
-    lower, upper = re.split(r"\s*,\s*", label_text.get_text().strip())
-    lower = human_format(float(lower))
-    upper = human_format(float(upper))
-    label_text.set_text(f"{lower} - {upper}")
+    # The merge operation above returned a GeoDataFrame. From this data
+    # structure it is very easy to create a choropleth map by invoking the
+    # plot method. We need to specify the column to plot and since we
+    # don't want a continuous color scale we set scheme to equal_interval
+    # and the number of classes k to 9. We also set the size of the figure
+    # and show a legend in the plot.
+    df.plot(
+        ax=ax,
+        # cax=cax,
+        figsize=figsize,
+        column=metric,
+        cmap=color_map,
+        edgecolor="black",
+        linewidth=0.1,
+        scheme="equal_interval",
+        # scheme="percentiles",
+        # scheme="quantiles",
+        k=color_steps,
+        legend=True,
+        legend_kwds={
+            "loc": "lower left",
+            "fmt": "{:.0f}",
+            "title": f"{metric.title()}",
+            "frameon": False,
+        },
+        missing_kwds={
+            "color": "lightgrey",
+            "edgecolor": "red",
+            "hatch": "///",
+            "label": "No values recorded",
+        },
+    )
 
-ax.set_facecolor(color_water)
-ax.tick_params(bottom=False, labelbottom=False, left=False, labelleft=False)
-ax.set_title(title, fontdict={'fontsize': 20}, loc='center', pad=12)
-# ax.annotate(description, xy=(0.1, 0.1), size=12, xycoords='figure fraction')
-# #ax.text(0.5, -0.1, description, size=12, ha='center', va='baseline', transform=ax.transAxes, wrap=True)
+    legend = ax.get_legend()
+    legend_texts = legend.get_texts()
+    for i, label_text in enumerate(legend_texts[:-1]):
+        lower, upper = re.split(r"\s*,\s*", label_text.get_text().strip())
+        lower = human_format(float(lower))
+        upper = human_format(float(upper))
+        label_text.set_text(f"{lower} - {upper}")
 
-df["coords"] = df["geometry"].apply(lambda x: x.representative_point().coords[0])
-df["area"] = df["geometry"].area
+    ax.set_facecolor(color_water)
+    ax.tick_params(bottom=False, labelbottom=False, left=False, labelleft=False)
+    ax.set_title(title, fontdict={"fontsize": 20}, loc="center", pad=12)
 
-df = df.sort_values(by="area", ascending=False)
+    # ax.annotate(description, xy=(0.1, 0.1), size=12, xycoords="figure fraction")
+    # ax.text(
+    #     0.5,
+    #     -0.1,
+    #     description,
+    #     size=12,
+    #     ha="center",
+    #     va="baseline",
+    #     transform=ax.transAxes,
+    #     wrap=True,
+    # )
 
-df.head(25).apply(
-    lambda x: ax.annotate(
-        text=f"{x['NAME']}\n{human_format(x['pageviews'])}",
-        xy=x.coords,
-        horizontalalignment="center",
-        verticalalignment="center",
-    ),
-    axis=1,
-)
+    df["coords"] = df["geometry"].apply(
+        lambda x: x.representative_point().coords[0]
+    )
+    df["area"] = df["geometry"].area
 
-plt.show()
+    df = df.sort_values(by="area", ascending=False)
 
+    df.head(25).apply(
+        lambda x: ax.annotate(
+            text=f"{x['NAME']}\n{human_format(x['pageviews'])}",
+            xy=x.coords,
+            horizontalalignment="center",
+            verticalalignment="center",
+        ),
+        axis=1,
+    )
+
+    if img_file:
+        plt.savefig(img_file)
+
+    if sys.stdin.isatty():
+        plt.show()
+
+
+def main():
+    pd.set_option(
+        "display.max_columns", None,
+        "display.max_rows", None,
+        "display.width", 0
+    )
+
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        description="Plot data from csv.")
+    parser.add_argument("csv_file", help="Input CSV file")
+    parser.add_argument("img_file", nargs="?",
+        help="Output image file")
+    parser.add_argument("--metric", "-m", default="pageviews",
+        choices=["sessions", "users" , "pageviews"],
+        help="GA metric to be displayed")
+    args = parser.parse_args()
+
+    plot_static(args.metric, args.csv_file, args.img_file)
+
+
+if __name__ == '__main__':
+    main()

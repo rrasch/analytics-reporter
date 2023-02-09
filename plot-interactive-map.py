@@ -3,23 +3,17 @@
 from datetime import datetime
 import argparse
 import fiscalyear as fy
+import os
 import pandas as pd
 import plotly.graph_objects as go
 import pycountry
 import re
-
-
-fy.setup_fiscal_calendar(start_month=9)
-
-pd.set_option(
-    "display.max_columns", None,
-    "display.max_rows", None,
-    "display.width", 0
-)
+import sys
 
 
 def convert_date(date_str):
     return datetime.strptime(date_str, "%Y-%m-%d").strftime("%B %Y")
+
 
 def get_date_range(file):
     flags = re.IGNORECASE
@@ -44,89 +38,118 @@ def get_date_range(file):
     raise ValueError("Can't extract date range from {file}")
 
 
-parser = argparse.ArgumentParser(
-    formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-    description="Plot data from csv using plotly.")
-parser.add_argument("csv_file", help="Input CSV file")
-parser.add_argument("html_file", nargs="?",
-    help="Output HTML file")
-parser.add_argument("--metric", "-m", default="pageviews",
-    choices=["sessions", "users" , "pageviews"],
-    help="GA metric to be displayed")
-args = parser.parse_args()
+def plot_interactive(metric, csv_file, html_file):
+    date_range = get_date_range(csv_file)
 
-date_range = get_date_range(args.csv_file)
+    if not html_file:
+        html_file = f"{args.metric}.html"
 
-sessions = pd.read_csv(args.csv_file, index_col="iso3")
+    fy.setup_fiscal_calendar(start_month=9)
 
-countries = [[country.alpha_3, country.name] for country in pycountry.countries]
-countries = pd.DataFrame(countries, columns=['iso3', 'name'])
-countries = countries.set_index("iso3")
-
-df = sessions.join(countries, how="outer")
-
-df = df.fillna(0)
-
-df = df.sort_values(by=[args.metric], ascending=False)
-
-title = {
-    "pageviews": "Views",
-    "sessions": "Sessions",
-    "users": "Users",
-}
-
-fig = go.Figure(
-    data=go.Choropleth(
-        locations=df.index,
-        z=df[args.metric],
-        text=df["name"],
-        hovertemplate="<b>%{text}</b><br>%{z}<extra></extra>",
-        colorscale="Reds",
-        autocolorscale=True,
-        reversescale=False,
-        marker_line_color="darkgray",
-        marker_line_width=0.5,
-        colorbar_tickprefix="",
-        colorbar_title=title[args.metric],
+    pd.set_option(
+        "display.max_columns",
+        None,
+        "display.max_rows",
+        None,
+        "display.width",
+        0,
     )
-)
 
-labels = [name if i < 10 else None for i, name in enumerate(df["name"])]
+    sessions = pd.read_csv(csv_file, index_col="iso3")
 
-fig.add_trace(
-    go.Scattergeo(
-        locations=df.index,
-        text=labels,
-        mode="text",
-        hoverinfo="skip",
-    )
-)
+    countries = [
+        [country.alpha_3, country.name] for country in pycountry.countries
+    ]
+    countries = pd.DataFrame(countries, columns=["iso3", "name"])
+    countries = countries.set_index("iso3")
 
+    df = sessions.join(countries, how="outer")
 
-annotation_text = f"Top ten countries for {title[args.metric]}:<br>"
-for i in range(0, 10):
-    annotation_text += f"<br>{i+1}. {labels[i]}"
+    df = df.fillna(0)
 
-fig.update_layout(
-    title_text=f"{title[args.metric]} by Country for {date_range}",
-    geo=dict(
-        showframe=True, showcoastlines=True, projection_type="equirectangular"
-    ),
-    annotations=[
-        dict(
-            x=0.15,
-            y=0.35,
-            xref="paper",
-            yref="paper",
-            align="left",
-            font=dict(
-                size=14,
-            ),
-            text=annotation_text,
-            showarrow=False,
+    df = df.sort_values(by=[metric], ascending=False)
+
+    title = {
+        "pageviews": "Views",
+        "sessions": "Sessions",
+        "users": "Users",
+    }
+
+    fig = go.Figure(
+        data=go.Choropleth(
+            locations=df.index,
+            z=df[metric],
+            text=df["name"],
+            hovertemplate="<b>%{text}</b><br>%{z}<extra></extra>",
+            colorscale="Reds",
+            autocolorscale=False,
+            reversescale=False,
+            marker_line_color="darkgray",
+            marker_line_width=0.5,
+            colorbar_tickprefix="",
+            colorbar_title=title[metric],
         )
-    ],
-)
+    )
 
-fig.show()
-fig.write_html(f"{args.metric}.html")
+    labels = [name if i < 10 else None for i, name in enumerate(df["name"])]
+
+    fig.add_trace(
+        go.Scattergeo(
+            locations=df.index,
+            text=labels,
+            mode="text",
+            hoverinfo="skip",
+        )
+    )
+
+    annotation_text = f"Top ten countries for {title[metric]}:<br>"
+    for i in range(0, 10):
+        annotation_text += f"<br>{i+1}. {labels[i]}"
+
+    fig.update_layout(
+        title_text=f"{title[metric]} by Country for {date_range}",
+        geo=dict(
+            showframe=True,
+            showcoastlines=True,
+            projection_type="equirectangular",
+        ),
+        annotations=[
+            dict(
+                x=0.15,
+                y=0.35,
+                xref="paper",
+                yref="paper",
+                align="left",
+                font=dict(
+                    size=14,
+                ),
+                text=annotation_text,
+                showarrow=False,
+            )
+        ],
+    )
+
+    if html_file:
+        fig.write_html(html_file)
+
+    if sys.stdout.isatty() and "DISPLAY" in os.environ:
+        fig.show()
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        description="Plot data from csv using plotly.")
+    parser.add_argument("csv_file", help="Input CSV file")
+    parser.add_argument("html_file", nargs="?",
+        help="Output HTML file")
+    parser.add_argument("--metric", "-m", default="pageviews",
+        choices=["sessions", "users" , "pageviews"],
+        help="GA metric to be displayed")
+    args = parser.parse_args()
+
+    plot_interactive(args.metric, args.csv_file, args.html_file)
+
+
+if __name__ == '__main__':
+    main()

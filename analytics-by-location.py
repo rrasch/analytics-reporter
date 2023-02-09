@@ -18,6 +18,7 @@ import pandas as pd
 import pprint
 import re
 import sys
+import yaml
 
 
 SCOPE = ['https://www.googleapis.com/auth/analytics.readonly']
@@ -146,6 +147,9 @@ def parse_date(date):
 
 
 def main():
+    with open("config.yaml") as f:
+        config = yaml.safe_load(f)
+    config = {k.lstrip(":"): v for k, v in config.items()}
 
     fy.setup_fiscal_calendar(start_month=9)
     now = fy.FiscalDateTime.now()
@@ -182,11 +186,26 @@ def main():
     if args.output_file:
         output_file = args.output_file
     else:
-        output_file = f"sessions_{start_date}_{end_date}.csv"
+        account = "-".join(args.account_list) if args.account_list else "all"
+        output_file = os.path.join(
+            config["output_dir"],
+            f"sessions_{account}_{start_date}_{end_date}.csv",
+        )
+
+    output_dir = os.path.dirname(output_file)
 
     print(f"start date: {start_date}")
     print(f"end date: {end_date}")
     print(f"output_file: {output_file}")
+    print(f"output_dir: {output_dir}")
+
+    if os.path.isfile(output_file):
+        print(f"Output file {output_file} already exists.")
+        exit(0)
+
+    if not (os.path.isdir(output_dir) and os.access(output_dir, os.W_OK)):
+        print(f"{output_dir} is not a writable directory.")
+        exit(1)
 
     pd.set_option('display.max_columns', None)
     pd.set_option('display.max_rows', None)

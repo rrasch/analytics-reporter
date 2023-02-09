@@ -183,21 +183,42 @@ def change_ext(filename, new_ext):
     return f"{basename}.{new_ext}"
 
 
-def sendmail(mailfrom, mailto, attachments):
+def sendmail(mailfrom, mailto, start_date, end_date, url, attachments):
+    subject = (
+        "Google Analystics Chloropehth Maps for "
+        + start_date
+        + " to "
+        + end_date
+    )
+
     msg = MIMEMultipart()
     msg["From"] = mailfrom
     msg["To"] = ", ".join(mailto)
-    msg["Subject"] = "Maps"
+    msg["Subject"] = subject
 
-    body = "Maps:\n\n"
+    body = subject + "\n\n"
 
-    msg.attach(MIMEText(body))
-
+    parts = []
     for attachment in attachments:
         basename = os.path.basename(attachment)
+        ishtml = basename.endswith("html")
+
+        if ishtml:
+            body += "Interactive Map:\n"
+        else:
+            body += "Static Map:\n"
+        body += f"{url}/{basename}\n\n"
+
+        if ishtml:
+            continue
+
         with open(attachment, "rb") as f:
             part = MIMEApplication(f.read(), Name=basename)
         part["Content-Disposition"] = f"attachment; filename={basename}"
+        parts.append(part)
+
+    msg.attach(MIMEText(body, "plain"))
+    for part in parts:
         msg.attach(part)
 
     try:
@@ -282,7 +303,15 @@ def main():
     if not os.path.isfile(img_file):
         psm.plot_static("pageviews", output_file, img_file)
 
-    sendmail(config["mailfrom"], config["mailto"], [img_file])
+    sendmail(
+        config["mailfrom"],
+        config["mailto"],
+        start_date,
+        end_date,
+        config["reports_url"],
+        [html_file, img_file],
+    )
+
 
 if __name__ == '__main__':
     main()

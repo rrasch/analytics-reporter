@@ -150,7 +150,7 @@ def plot_static(metric, csv_file, img_file):
     if img_file:
         plt.savefig(img_file)
 
-    if sys.stdin.isatty():
+    if sys.stdout.isatty() and "DISPLAY" in os.environ:
         plt.show()
 
 

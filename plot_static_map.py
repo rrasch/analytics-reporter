@@ -9,6 +9,7 @@ import os
 import pandas as pd
 import re
 import sys
+import util
 
 
 def human_format(num):
@@ -24,6 +25,12 @@ def human_format(num):
 
 
 def plot_static(metric, csv_file, img_file):
+    try:
+        date_range = util.get_date_range(csv_file)
+    except ValueError as e:
+        print("Can't get date range filename: {csv_file}")
+        date_range = ""
+
     shapefile = os.path.join(
         os.path.expanduser("~"),
         "Downloads",
@@ -37,6 +44,9 @@ def plot_static(metric, csv_file, img_file):
     figsize = (16, 10)
     color_water = "lightskyblue"
     description = "Description"
+
+    plt.rcParams["figure.dpi"] = 100
+    plt.rcParams["savefig.dpi"] = 150
 
     f, ax = plt.subplots(figsize=figsize, edgecolor="black")
     # ax.set_aspect('equal')
@@ -59,7 +69,9 @@ def plot_static(metric, csv_file, img_file):
 
     # ne_data.plot(ax=ax, color='white', edgecolor=None, linewidth=1)
 
-    title = f"{metric.title()} by country".title()
+    title = util.titlecase(f"{metric} by country")
+    if date_range:
+        title += " " + date_range
 
     if not img_file:
         img_file = "{slugify(title)}.jpg"

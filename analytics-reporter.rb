@@ -45,6 +45,9 @@ def get_properties
     account.property_summaries.each do |property_summary|
       # puts "#{account.display_name}: #{property_summary.display_name}"
       name = property_summary.display_name.sub(/\s+-\s+GA4$/, "")
+      if name =~ /^Finding Aids/
+        name = name.sub(/\s+Hosted at New York University$/, "")
+      end
       properties[account.display_name + ":" + name] = property_summary.property
     end
   end
@@ -57,6 +60,7 @@ def get_profiles(service)
   service.list_accounts.items.each do |account|
     service.list_profiles(account.id, '~all').items.each do |profile|
       name = profile.name.dup
+      # puts "#{account.name} #{name}"
       if name.sub!(' (master view)', '')
         profiles[account.name + ":" + name] = profile
       end

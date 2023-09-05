@@ -3,10 +3,13 @@
 # https://developers.google.com/analytics/devguides/config/mgmt/v3/quickstart/service-py
 # https://stackoverflow.com/questions/59840150/google-analytics-data-to-pandas-dataframe
 
+from apiclient.discovery import build
 from datetime import datetime, timedelta
-
+from email.mime.application import MIMEApplication
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from geonamescache.mappers import country
 from google.analytics.admin import AnalyticsAdminServiceClient
-
 from google.analytics.data_v1beta import BetaAnalyticsDataClient
 from google.analytics.data_v1beta.types import (
     DateRange,
@@ -15,12 +18,6 @@ from google.analytics.data_v1beta.types import (
     MetricType,
     RunReportRequest,
 )
-
-from apiclient.discovery import build
-from email.mime.application import MIMEApplication
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from geonamescache.mappers import country
 from oauth2client import client
 from oauth2client import file
 from oauth2client import tools
@@ -37,6 +34,7 @@ import plot_static_map as psm
 import re
 import smtplib
 import sys
+import time
 import yaml
 
 
@@ -46,9 +44,22 @@ CLIENT_SECRET_FILE = 'client_secret.json'
 
 CREDENTIAL_FILE = 'credentials.json'
 
-NEW_CRED_FILE = "analytics-ga4.json"
+GA4_CREDENTIAL_FILE = "analytics-ga4.json"
 
-os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = os.path.join(os.environ['HOME'], '.analytics', NEW_CRED_FILE)
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.path.join(
+    os.environ["HOME"], ".analytics", GA4_CREDENTIAL_FILE
+)
+
+DIMENSIONS = {
+    "countryId": "ga:countryIsoCode",
+}
+
+METRICS = {
+    "sessions": "ga:sessions",
+    "totalUsers": "ga:users",
+    "screenPageViews": "ga:pageviews",
+}
+
 
 def ga4_response_to_df(response):
     dim_len = len(response.dimension_headers)
@@ -57,13 +68,29 @@ def ga4_response_to_df(response):
     for row in response.rows:
         row_data = {}
         for i in range(0, dim_len):
-            row_data.update({response.dimension_headers[i].name: row.dimension_values[i].value})
+            row_data.update(
+                {
+                    DIMENSIONS[
+                        response.dimension_headers[i].name
+                    ]: row.dimension_values[i].value
+                }
+            )
         for i in range(0, metric_len):
-            row_data.update({response.metric_headers[i].name: row.metric_values[i].value})
-        pprint(row_data)
+            row_data.update(
+                {
+                    METRICS[response.metric_headers[i].name]: row.metric_values[
+                        i
+                    ].value
+                }
+            )
+        # pprint(row_data)
         all_data.append(row_data)
     df = pd.DataFrame(all_data)
+    df.loc[df["ga:countryIsoCode"] == "(not set)", "ga:countryIsoCode"] = "ZZ"
+    df = df.set_index("ga:countryIsoCode")
+    set_int(df)
     return df
+
 
 def print_run_report_response(response):
     """Prints results of a runReport call."""
@@ -89,29 +116,32 @@ def print_run_report_response(response):
             print(f"{metric_name}: {metric_value.value}")
     # [END analyticsdata_print_run_report_response_rows]
 
-def get_properties() -> list:
+
+def get_properties() -> dict:
     client = AnalyticsAdminServiceClient()
     results = client.list_account_summaries()
-    props = []
+    properties = {}
     for account_summary in results:
         for property_summary in account_summary.property_summaries:
-            props.append(property_summary.property)
             print(f"Property resource name: {property_summary.property}")
             print(f"Property display name: {property_summary.display_name}")
             print()
-    return props
+            name = re.sub(r"\s+-\s+GA4$", "", property_summary.display_name)
+            if re.search(r"^Finding Aids", name):
+                name = re.sub("\s+Hosted at New York University$", "", name)
+            properties[
+                f"{account_summary.display_name}:{name}"
+            ] = property_summary.property
+    return properties
 
-def get_analytics_v4(start_date, end_date):
+
+def get_results_v4(prop, start_date, end_date):
     """Runs a report of active users grouped by country."""
     client = BetaAnalyticsDataClient()
-
-    props = get_properties()
-
     request = RunReportRequest(
-        property=props[0],
+        property=prop,
         dimensions=[
-            Dimension(name="country"),
-            Dimension(name="city"),
+            Dimension(name="countryId"),
         ],
         metrics=[
             Metric(name="sessions"),
@@ -121,10 +151,9 @@ def get_analytics_v4(start_date, end_date):
         date_ranges=[DateRange(start_date=start_date, end_date=end_date)],
     )
     response = client.run_report(request)
-    pprint(response)
-    print(ga4_response_to_df(response))
-    print_run_report_response(response)
-
+    # print_run_report_response(response)
+    # return ga4_response_to_df(response)
+    return response
 
 
 def get_service(api_name, api_version, scope, client_secrets_path):
@@ -177,8 +206,7 @@ def get_profile_ids(service, account_list=None):
 
     # Get a list of all Google Analytics accounts
     # for the authorized user.
-    # accounts = service.management().accounts().list().execute()
-    accounts = service.management().accountSummaries().list().execute()
+    accounts = service.management().accounts().list().execute()
 
     profile_ids = []
 
@@ -186,11 +214,9 @@ def get_profile_ids(service, account_list=None):
         name = account.get('name')
         account_id = account.get('id')
         print(f"Account: {name} ({account_id})")
-        pprint(account)
 
         if account_list and name not in account_list:
             continue
-
 
         # Get a list of all views (profiles) for property.
         profiles = service.management().profiles().list(
@@ -199,14 +225,11 @@ def get_profile_ids(service, account_list=None):
 
         for profile in profiles.get('items'):
             print(f"    Profile: {profile.get('name')}")
-#             if "master view" not in profile.get('name'):
-#                 continue
-#             print(f"    Profile: {profile.get('name')}")
-            #pprint(profile)
-            print()
+            if "master view" not in profile.get('name'):
+                continue
+            print(f"    Profile: {profile.get('name')}")
             profile_ids.append(profile.get('id'))
 
-    exit(1)
     return profile_ids
 
 
@@ -221,46 +244,6 @@ def get_results(service, profile_id, start_date, end_date):
             metrics='ga:sessions,ga:users,ga:pageviews',
             dimensions='ga:countryIsoCode'
             ).execute()
-
-
-def get_results_v4(service, profile_id, start_date, end_date):
-    # Use the Analytics Service Object to query the Core Reporting API
-    # for the number of sessions, users, and pageviews from
-    # start_date to end_date.
-    return service.data().ga().get(
-            ids='ga:' + profile_id,
-            start_date=start_date,
-            end_date=end_date,
-            metrics='ga:sessions,ga:users,ga:pageviews',
-            dimensions='ga:countryIsoCode'
-            ).execute()
-
-    metrics = ["ga:sessions", "ga:users", "ga:pageviews"]
-    dimensions = ['ga:countryIsoCode']
-
-    return (
-        analytics.reports()
-        .batchGet(
-            body={
-                "reportRequests": [
-                    {
-                        "viewId": VIEW_ID,
-                        "dateRanges": [
-                            {"startDate": start_date, "endDate": end_date}
-                        ],
-                        "metrics": [
-                            {"expression": metric} for metric in metrics
-                        ],
-                        "dimensions": [
-                            {"name": dimension} for dimension in dimensions
-                        ],
-                    }
-                ]
-            }
-        )
-        .execute()
-    )
-
 
 
 def conv_iso_2_to_3(iso_2):
@@ -292,28 +275,41 @@ def parse_date(date):
 
 
 def get_analytics(account_list, start_date, end_date, output_file):
-    scope = ['https://www.googleapis.com/auth/analytics.readonly']
+    scope = ["https://www.googleapis.com/auth/analytics.readonly"]
 
     # Authenticate and construct service.
-    service = get_service('analytics', 'v3', scope, 'client_secrets.json')
-
-    reporting_service = get_service("analyticsreporting", "v4", scope, "client_secrets.json")
+    service = get_service("analytics", "v3", scope, "client_secrets.json")
 
     profile_ids = get_profile_ids(service, account_list)
     print("profile ids:")
     pprint(profile_ids)
 
+    properties = get_properties()
+    pprint(properties)
+
     total = pd.DataFrame()
 
     for profile_id in profile_ids:
-        results = get_results_v4(reporting_service, profile_id, start_date, end_date)
-        df = create_dataframe(results)
-        print(df)
-        total = total.add(df, fill_value=0)
+        results = get_results(service, profile_id, start_date, end_date)
+        if results.get("totalResults", 0) > 0:
+            df = create_dataframe(results)
+            print(df)
+            total = total.add(df, fill_value=0)
+
+    for long_name, prop in properties.items():
+        account_name, site_name = long_name.split(":")
+        print(account_name)
+        print(site_name)
+        results = get_results_v4(prop, start_date, end_date)
+        pprint(results)
+        if results.row_count > 0:
+            df = ga4_response_to_df(results)
+            print(df)
+            total = total.add(df, fill_value=0)
 
     total.index = [conv_iso_2_to_3(i) for i in total.index]
-    total.index.name = 'iso3'
-    total.columns = [re.sub(r'^ga:', '', col) for col in total.columns]
+    total.index.name = "iso3"
+    total.columns = [re.sub(r"^ga:", "", col) for col in total.columns]
     set_int(total)
 
     total.to_csv(output_file)
@@ -414,46 +410,44 @@ def main():
 
     if args.output_file:
         output_file = args.output_file
-#     else:
-#         account = "-".join(args.account_list) if args.account_list else "all"
-#         output_file = os.path.join(
-#             config["output_dir"],
-#             f"sessions_{account}_{start_date}_{end_date}.csv",
-#         )
-# 
-#     output_dir = os.path.dirname(output_file)
+    else:
+        account = "-".join(args.account_list) if args.account_list else "all"
+        output_file = os.path.join(
+            config["output_dir"],
+            f"sessions_{account}_{start_date}_{end_date}.csv",
+        )
+
+    output_dir = os.path.dirname(output_file)
 
     print(f"start date: {start_date}")
     print(f"end date: {end_date}")
-#     print(f"output_file: {output_file}")
-#     print(f"output_dir: {output_dir}")
+    print(f"output_file: {output_file}")
+    print(f"output_dir: {output_dir}")
 
-    get_analytics_v4(start_date, end_date)
+    if os.path.isfile(output_file):
+        print(f"Output file {output_file} already exists.")
+    else:
+        if not (os.path.isdir(output_dir) and os.access(output_dir, os.W_OK)):
+            print(f"{output_dir} is not a writable directory.")
+            exit(1)
+        get_analytics(args.account_list, start_date, end_date, output_file)
 
-#     if os.path.isfile(output_file):
-#         print(f"Output file {output_file} already exists.")
-#     else:
-#         if not (os.path.isdir(output_dir) and os.access(output_dir, os.W_OK)):
-#             print(f"{output_dir} is not a writable directory.")
-#             exit(1)
-#         get_analytics(args.account_list, start_date, end_date, output_file)
+    html_file = change_ext(output_file, "html")
+    if not os.path.isfile(html_file):
+        pim.plot_interactive("pageviews", output_file, html_file)
 
-#     html_file = change_ext(output_file, "html")
-#     if not os.path.isfile(html_file):
-#         pim.plot_interactive("pageviews", output_file, html_file)
-# 
-#     img_file = change_ext(output_file, "jpg")
-#     if not os.path.isfile(img_file):
-#         psm.plot_static("pageviews", output_file, img_file)
-# 
-#     sendmail(
-#         config["mailfrom"],
-#         config["mailto"],
-#         start_date,
-#         end_date,
-#         config["reports_url"],
-#         [html_file, img_file],
-#     )
+    img_file = change_ext(output_file, "jpg")
+    if not os.path.isfile(img_file):
+        psm.plot_static("pageviews", output_file, img_file)
+
+    sendmail(
+        config["mailfrom"],
+        config["mailto"],
+        start_date,
+        end_date,
+        config["reports_url"],
+        [html_file, img_file],
+    )
 
 
 if __name__ == '__main__':

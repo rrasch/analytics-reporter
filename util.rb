@@ -28,7 +28,7 @@ class Util
 
     mail.deliver!
 
-    if Dir.exists?(config[:output_dir])
+    if Dir.exist?(config[:output_dir])
       FileUtils.cp(files, config[:output_dir])
     end
 

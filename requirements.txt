@@ -1,9 +1,13 @@
+PyYAML
+Shapely
 basemap_data
 dateparser
 descartes
 fiscalyear
 geonamescache
 geopandas
+google-analytics-admin
+google-analytics-data
 google-api-python-client
 httplib2
 mapclassify
@@ -13,6 +17,4 @@ oauth2client
 pandas
 plotly
 pycountry
-PyYAML
-Shapely
 slugify

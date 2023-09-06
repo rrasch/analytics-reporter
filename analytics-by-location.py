@@ -185,7 +185,7 @@ def change_ext(filename, new_ext):
 
 def sendmail(mailfrom, mailto, start_date, end_date, url, attachments):
     subject = (
-        "Google Analystics Choropleth Maps for "
+        "Google Analytics Choropleth Maps for "
         + start_date
         + " to "
         + end_date

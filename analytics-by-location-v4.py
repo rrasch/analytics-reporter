@@ -21,7 +21,7 @@ from google.analytics.data_v1beta.types import (
 from oauth2client import client
 from oauth2client import file
 from oauth2client import tools
-from pprint import pprint
+from pprint import pprint, pformat
 import argparse
 import dateparser
 import fiscalyear as fy
@@ -60,6 +60,8 @@ METRICS = {
     "screenPageViews": "ga:pageviews",
 }
 
+logging.basicConfig(format="%(levelname)s: %(message)s")
+logger = logging.getLogger(__name__)
 
 def ga4_response_to_df(response):
     dim_len = len(response.dimension_headers)
@@ -83,7 +85,7 @@ def ga4_response_to_df(response):
                     ].value
                 }
             )
-        # pprint(row_data)
+        # logger.debug(pformat(row_data))
         all_data.append(row_data)
     df = pd.DataFrame(all_data)
     df.loc[df["ga:countryIsoCode"] == "(not set)", "ga:countryIsoCode"] = "ZZ"
@@ -117,15 +119,16 @@ def print_run_report_response(response):
     # [END analyticsdata_print_run_report_response_rows]
 
 
-def get_properties() -> dict:
+def get_properties(account_list=None) -> dict:
     client = AnalyticsAdminServiceClient()
     results = client.list_account_summaries()
     properties = {}
     for account_summary in results:
+        if account_list and account_summary.display_name not in account_list:
+            continue
         for property_summary in account_summary.property_summaries:
-            print(f"Property resource name: {property_summary.property}")
-            print(f"Property display name: {property_summary.display_name}")
-            print()
+            logger.debug(f"Property resource name: {property_summary.property}")
+            logger.debug(f"Property display name: {property_summary.display_name}\n")
             name = re.sub(r"\s+-\s+GA4$", "", property_summary.display_name)
             if re.search(r"^Finding Aids", name):
                 name = re.sub("\s+Hosted at New York University$", "", name)
@@ -213,7 +216,7 @@ def get_profile_ids(service, account_list=None):
     for account in accounts.get('items'):
         name = account.get('name')
         account_id = account.get('id')
-        print(f"Account: {name} ({account_id})")
+        logger.debug(f"Account: {name} ({account_id})")
 
         if account_list and name not in account_list:
             continue
@@ -224,10 +227,10 @@ def get_profile_ids(service, account_list=None):
                 webPropertyId='~all').execute()
 
         for profile in profiles.get('items'):
-            print(f"    Profile: {profile.get('name')}")
+            logger.debug(f"    Profile: {profile.get('name')}")
             if "master view" not in profile.get('name'):
                 continue
-            print(f"    Profile: {profile.get('name')}")
+            logger.debug(f"    Profile: {profile.get('name')}")
             profile_ids.append(profile.get('id'))
 
     return profile_ids
@@ -281,11 +284,10 @@ def get_analytics(account_list, start_date, end_date, output_file):
     service = get_service("analytics", "v3", scope, "client_secrets.json")
 
     profile_ids = get_profile_ids(service, account_list)
-    print("profile ids:")
-    pprint(profile_ids)
+    logger.info("profile ids:\n" + pformat(profile_ids))
 
-    properties = get_properties()
-    pprint(properties)
+    properties = get_properties(account_list)
+    logger.info("properties:\n" + pformat(properties))
 
     total = pd.DataFrame()
 
@@ -293,18 +295,18 @@ def get_analytics(account_list, start_date, end_date, output_file):
         results = get_results(service, profile_id, start_date, end_date)
         if results.get("totalResults", 0) > 0:
             df = create_dataframe(results)
-            print(df)
+            logger.debug(df)
             total = total.add(df, fill_value=0)
 
     for long_name, prop in properties.items():
         account_name, site_name = long_name.split(":")
-        print(account_name)
-        print(site_name)
+        logger.debug(account_name)
+        logger.debug(site_name)
         results = get_results_v4(prop, start_date, end_date)
-        pprint(results)
+        logger.debug(pformat(results))
         if results.row_count > 0:
             df = ga4_response_to_df(results)
-            print(df)
+            logger.debug(df)
             total = total.add(df, fill_value=0)
 
     total.index = [conv_iso_2_to_3(i) for i in total.index]
@@ -361,9 +363,9 @@ def sendmail(mailfrom, mailto, start_date, end_date, url, attachments):
     try:
         smtp = smtplib.SMTP("localhost")
         smtp.sendmail(mailfrom, mailto, msg.as_string())
-        print("Sent email.")
+        logger.debug("Sent email.")
     except Exception as e:
-        print(f"Could not send mail: {e}")
+        logger.error(f"Could not send mail: {e}")
 
 
 def main():
@@ -400,7 +402,9 @@ def main():
         help="Comma separated list of ga accounts")
     args = parser.parse_args()
 
-    pprint(f"command line args: {args}")
+    logger.setLevel(logging.DEBUG if args.debug else logging.INFO)
+
+    logger.debug(pformat(f"command line args: {args}"))
 
     if args.start_date != start_date:
         start_date = parse_date(args.start_date)
@@ -419,10 +423,10 @@ def main():
 
     output_dir = os.path.dirname(output_file)
 
-    print(f"start date: {start_date}")
-    print(f"end date: {end_date}")
-    print(f"output_file: {output_file}")
-    print(f"output_dir: {output_dir}")
+    logger.debug(f"start date: {start_date}")
+    logger.debug(f"end date: {end_date}")
+    logger.debug(f"output_file: {output_file}")
+    logger.debug(f"output_dir: {output_dir}")
 
     if os.path.isfile(output_file):
         print(f"Output file {output_file} already exists.")

@@ -377,7 +377,7 @@ def main():
     config = {k.lstrip(":"): v for k, v in config.items()}
 
     fy.setup_fiscal_calendar(start_month=9)
-    now = fy.FiscalDateTime.now() + timedelta(1)
+    now = fy.FiscalDateTime.now()
     start_date = now.prev_fiscal_quarter.start.strftime('%Y-%m-%d')
     end_date = now.prev_fiscal_quarter.end.strftime('%Y-%m-%d')
 

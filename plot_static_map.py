@@ -78,7 +78,7 @@ def plot_static(metric, csv_file, img_file):
 
     # Read google analytics data into dataframe
     ga_data = pd.read_csv(csv_file)
-    print(ga_data.sample(5))
+    # print(ga_data.sample(5))
 
     # Next we merge the data frames on the columns containing the
     # 3-letter country codes and show summary statistics as returned

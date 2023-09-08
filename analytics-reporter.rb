@@ -164,7 +164,7 @@ def get_analytics(service, profiles, properties, config)
 
   puts "Sites that don't have both v3 and v4 properties:"
   names.select{|i| names.count(i) == 1}.sort.each do |n|
-    if profiles.has_key?(n)
+    if profiles.key?(n)
       puts "V3 #{n}"
     else
       puts "V4 #{n}"
@@ -173,7 +173,14 @@ def get_analytics(service, profiles, properties, config)
 
   names = names.sort.uniq
 
+  skip_list = config[:skip_list].to_h { |name| [name, 1] }
+
   names.each do |name|
+    if skip_list.key?(name)
+      puts "Skipping #{name} ..."
+      next
+    end
+
     account_name, site_name = name.split(":")
 
     ga_url = "https://analytics.google.com"
@@ -181,7 +188,7 @@ def get_analytics(service, profiles, properties, config)
     prev_result_row = Array.new(3, 0)
     result_row = Array.new(3, 0)
 
-    if profiles.has_key?(name)
+    if profiles.key?(name)
       profile = profiles[name]
       # puts profile.inspect
 
@@ -210,7 +217,7 @@ def get_analytics(service, profiles, properties, config)
       result_row = sum_array(result_row, result.rows[0].map(&:to_i))
     end
 
-    if properties.has_key?(name)
+    if properties.key?(name)
       property = properties[name]
       prefix, prop_num = property.split("/")
       puts "Querying GA4 property: #{name} #{property}"

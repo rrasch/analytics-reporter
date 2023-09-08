@@ -207,31 +207,36 @@ def get_service(api_name, api_version, scope, client_secrets_path):
 def get_profile_ids(service, account_list=None):
     # Use the Analytics service object to get profile ids.
 
-    # Get a list of all Google Analytics accounts
+    # Get a list of all Google Analytics profiles
     # for the authorized user.
     accounts = service.management().accounts().list().execute()
 
-    profile_ids = []
+    profile_ids = {}
 
-    for account in accounts.get('items'):
-        name = account.get('name')
-        account_id = account.get('id')
-        logger.debug(f"Account: {name} ({account_id})")
+    for account in accounts.get("items"):
+        account_name = account.get("name")
+        account_id = account.get("id")
+        logger.debug(f"Account: {account_name} ({account_id})")
 
-        if account_list and name not in account_list:
+        if account_list and account_name not in account_list:
             continue
 
         # Get a list of all views (profiles) for property.
-        profiles = service.management().profiles().list(
-                accountId=account_id,
-                webPropertyId='~all').execute()
+        profiles = (
+            service.management()
+            .profiles()
+            .list(accountId=account_id, webPropertyId="~all")
+            .execute()
+        )
 
-        for profile in profiles.get('items'):
-            logger.debug(f"    Profile: {profile.get('name')}")
-            if "master view" not in profile.get('name'):
+        for profile in profiles.get("items"):
+            profile_name = profile.get("name")
+            profile_id = profile.get("id")
+            logger.debug(f"    Profile: {profile_name}")
+            if "master view" not in profile_name:
                 continue
-            logger.debug(f"    Profile: {profile.get('name')}")
-            profile_ids.append(profile.get('id'))
+            logger.debug(f"    Profile: {profile_name}")
+            profile_ids[f"{account_name}:{profile_name}"] = profile_id
 
     return profile_ids
 
@@ -277,7 +282,7 @@ def parse_date(date):
     return dateparser.parse(date).strftime('%Y-%m-%d')
 
 
-def get_analytics(account_list, start_date, end_date, output_file):
+def get_analytics(account_list, skip_list, start_date, end_date, output_file):
     scope = ["https://www.googleapis.com/auth/analytics.readonly"]
 
     # Authenticate and construct service.
@@ -289,9 +294,13 @@ def get_analytics(account_list, start_date, end_date, output_file):
     properties = get_properties(account_list)
     logger.info("properties:\n" + pformat(properties))
 
+    skip_dict = {name: 1 for name in skip_list}
+
     total = pd.DataFrame()
 
-    for profile_id in profile_ids:
+    for long_name, profile_id in profile_ids.items():
+        if long_name in skip_dict:
+            continue
         results = get_results(service, profile_id, start_date, end_date)
         if results.get("totalResults", 0) > 0:
             df = create_dataframe(results)
@@ -299,6 +308,8 @@ def get_analytics(account_list, start_date, end_date, output_file):
             total = total.add(df, fill_value=0)
 
     for long_name, prop in properties.items():
+        if long_name in skip_dict:
+            continue
         account_name, site_name = long_name.split(":")
         logger.debug(account_name)
         logger.debug(site_name)
@@ -374,7 +385,9 @@ def main():
     pd.set_option('display.max_colwidth', None)
     # pd.set_option('display.float_format', '{:,.0f}'.format)
 
-    with open("config.yaml") as f:
+    script_dir = os.path.dirname(os.path.realpath(__file__))
+    config_file = os.path.join(script_dir, "config.yaml")
+    with open(config_file) as f:
         config = yaml.safe_load(f)
     config = {k.lstrip(":"): v for k, v in config.items()}
 
@@ -404,7 +417,8 @@ def main():
 
     logger.setLevel(logging.DEBUG if args.debug else logging.INFO)
 
-    logger.debug(pformat(f"command line args: {args}"))
+    logger.debug(f"config: {pformat(config)}")
+    logger.debug(f"command line args: {pformat(args)}")
 
     if args.start_date != start_date:
         start_date = parse_date(args.start_date)
@@ -434,7 +448,13 @@ def main():
         if not (os.path.isdir(output_dir) and os.access(output_dir, os.W_OK)):
             print(f"{output_dir} is not a writable directory.")
             exit(1)
-        get_analytics(args.account_list, start_date, end_date, output_file)
+        get_analytics(
+            args.account_list,
+            config["skip_list"],
+            start_date,
+            end_date,
+            output_file,
+        )
 
     html_file = change_ext(output_file, "html")
     if not os.path.isfile(html_file):

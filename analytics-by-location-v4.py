@@ -232,11 +232,11 @@ def get_profile_ids(service, account_list=None):
         for profile in profiles.get("items"):
             profile_name = profile.get("name")
             profile_id = profile.get("id")
-            logger.debug(f"    Profile: {profile_name}")
-            if "master view" not in profile_name:
-                continue
-            logger.debug(f"    Profile: {profile_name}")
-            profile_ids[f"{account_name}:{profile_name}"] = profile_id
+            flag_chr = " "
+            if "master view" in profile_name:
+                flag_chr = "*"
+                profile_ids[f"{account_name}:{profile_name}"] = profile_id
+            logger.debug(f"  {flag_chr} Profile: {profile_name}")
 
     return profile_ids
 

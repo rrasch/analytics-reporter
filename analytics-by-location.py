@@ -217,7 +217,7 @@ def sendmail(mailfrom, mailto, start_date, end_date, url, attachments):
         part["Content-Disposition"] = f"attachment; filename={basename}"
         parts.append(part)
 
-    msg.attach(MIMEText(body, "plain"))
+    msg.attach(MIMEText(body, "plain", "utf-8"))
     for part in parts:
         msg.attach(part)
 

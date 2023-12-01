@@ -213,8 +213,12 @@ def get_analytics(service, profiles, properties, config)
 
       # puts "prev_result: ", prev_result.inspect
       # puts "result: ", result.inspect
-      prev_result_row = sum_array(prev_result_row, prev_result.rows[0].map(&:to_i))
-      result_row = sum_array(result_row, result.rows[0].map(&:to_i))
+
+      prev_result_rows = prev_result.rows || [["0", "0", "0"]]
+      result_rows = result.rows || [["0", "0", "0"]]
+
+      prev_result_row = sum_array(prev_result_row, prev_result_rows[0].map(&:to_i))
+      result_row = sum_array(result_row, result_rows[0].map(&:to_i))
     end
 
     if properties.key?(name)

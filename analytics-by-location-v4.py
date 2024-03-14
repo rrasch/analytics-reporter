@@ -22,6 +22,7 @@ from oauth2client import client
 from oauth2client import file
 from oauth2client import tools
 from pprint import pprint, pformat
+from subprocess import PIPE, Popen
 import argparse
 import dateparser
 import fiscalyear as fy
@@ -333,7 +334,9 @@ def change_ext(filename, new_ext):
     return f"{basename}.{new_ext}"
 
 
-def sendmail(mailfrom, mailto, start_date, end_date, url, attachments):
+def sendmail(
+    mailfrom, mailto, start_date, end_date, url, attachments, use_sendmail=True
+):
     subject = (
         "Google Analytics Choropleth Maps for "
         + start_date
@@ -372,8 +375,12 @@ def sendmail(mailfrom, mailto, start_date, end_date, url, attachments):
         msg.attach(part)
 
     try:
-        smtp = smtplib.SMTP("localhost")
-        smtp.sendmail(mailfrom, mailto, msg.as_string())
+        if use_sendmail:
+            p = Popen(["/usr/sbin/sendmail", "-t", "-oi"], stdin=PIPE)
+            out, err = p.communicate(msg.as_bytes())
+        else:
+            smtp = smtplib.SMTP("localhost")
+            smtp.sendmail(mailfrom, mailto, msg.as_string())
         logger.debug("Sent email.")
     except Exception as e:
         logger.error(f"Could not send mail: {e}")

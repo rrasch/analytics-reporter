@@ -23,7 +23,9 @@ or install them individually
 
     gem install chronic
     gem install fiscali
-    gem install google-api-client -v 0.9.1
+    gem install google-analytics-admin-v1alpha
+    gem install google-analytics-data-v1beta
+    gem install google-api-client
     gem install mail
     gem install mechanize
     gem install spreadsheet

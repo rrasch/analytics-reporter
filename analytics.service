@@ -1,0 +1,12 @@
+# ~/.config/systemd/user/anaytics.service
+
+[Unit]
+Description=Run quarterly google analytics reports
+Wants=network-online.target
+After=network.target
+
+[Service]
+ExecStart=<APP_HOME>/run-analytics.sh
+
+[Install]
+WantedBy=default.target

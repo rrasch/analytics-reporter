@@ -4,6 +4,8 @@ set -e
 
 SCRIPT_HOME=$HOME/work/analytics-reporter
 
+umask 022
+
 cd $SCRIPT_HOME
 git pull
 

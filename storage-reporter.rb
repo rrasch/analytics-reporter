@@ -98,13 +98,23 @@ def get_partners(config)
   agent.add_auth(config[:rsbe_domain],
                  config[:rsbe_user], config[:rsbe_pass])
 
+  api_url = "#{config[:rsbe_domain]}/api/v0"
+
+  owners_url = "#{api_url}/owners"
+  owners_list = JSON.parse(agent.get(owners_url).content)
+  owners = owners_list.map { |h| [h['id'], h] }.to_h
+
   partners = {}
-  partners_url = "#{config[:rsbe_domain]}/api/v0/partners"
+  partners_url = "#{api_url}/partners"
   partners_list = JSON.parse(agent.get(partners_url).content)
   partners_list.each do |partner|
     collections_url = "#{partner['url']}/colls"
     collections_list = JSON.parse(agent.get(collections_url).content)
-    collections = collections_list.map { |h| [h['code'], h] }.to_h
+    collections = {}
+    collections_list.each do |coll|
+      coll['owner_name'] = owners[coll['owner_id']]['name']
+      collections[coll['code']] = coll
+    end
     partner['collections'] = collections
     partners[partner['code']] = partner
   end
@@ -175,7 +185,8 @@ Dir.mktmpdir(file_prefix) do |tmpdir|
   writer.add_row(['DLTS collections quarterly report - storage'])
   writer.add_row(['Year:', "FY#{config[:report_year]}"])
   writer.add_row(['Quarter:', config[:report_qtr]])
-  writer.add_row_header(['Partner', 'Collection', 'Title',
+  writer.add_row_header(['Owner', 'Partner', 'Collection',
+                         'Collection ID', 'Title',
                          'Item count', 'Chg from prev qtr',
                          'Size in GB', 'Chg from prev qtr'])
 
@@ -183,8 +194,9 @@ Dir.mktmpdir(file_prefix) do |tmpdir|
 
   trends_writer.add_row(['DLTS collections quarterly report - storage trends'])
 
-  year_labels = ['Year:', "FY#{config[:report_year]}", ""]
-  qtr_labels  = ['Quarter:', config[:report_qtr], ""]
+  blanks = [""] * 3
+  year_labels = ['Year:', "FY#{config[:report_year]}"] + blanks
+  qtr_labels  = ['Quarter:', config[:report_qtr]] + blanks
   end_qtr = config[:end]
   while end_qtr > first_report_date
     qtr, year = end_qtr.financial_quarter.split
@@ -197,23 +209,26 @@ Dir.mktmpdir(file_prefix) do |tmpdir|
   trends_writer.add_row(year_labels)
   trends_writer.add_row(qtr_labels)
 
-  labels = ['Partner', 'Collection', 'Title']
+  labels = ['Owner', 'Partner', 'Collection', 'Collection ID', 'Title']
   labels.concat(Array.new(num_labels, 'Size in GB'))
   trends_writer.add_row_header(labels)
 
   gigabyte = (10 ** 3) ** 3
 
   totals.sort_by { |k,v| v[:size] }.reverse.each do |key, val|
+    collection = nil
     unless key == :all || partners[val[:provider]].nil?
       collection = partners[val[:provider]]['collections'][val[:collection]]
-      val[:title] = collection['name'] unless collection.nil?
     end
+    collection ||= {}
 
     #puts val
     data = []
+    data.push(collection.fetch('owner_name', ''))
     data.push(val[:provider])
     data.push(val[:collection])
-    data.push(val[:title])
+    data.push(collection.fetch('display_code', ''))
+    data.push(collection.fetch('name', ''))
     data.push(val[:num_files])
     data.push(calc_change(prev_totals, totals, key, :num_files))
     data.push(sprintf('%.2f', val[:size].to_f / gigabyte))
@@ -221,9 +236,11 @@ Dir.mktmpdir(file_prefix) do |tmpdir|
     writer.add_row(data)
 
     data = []
+    data.push(collection.fetch('owner_name', ''))
     data.push(val[:provider])
     data.push(val[:collection])
-    data.push(val[:title])
+    data.push(collection.fetch('display_code', ''))
+    data.push(collection.fetch('name', ''))
     end_qtr = config[:end]
     while end_qtr > first_report_date
       #puts end_qtr.financial_quarter

@@ -106,7 +106,7 @@ class ReportWriter
           column_width = cell_width
         end
       end
-      @xls.column(col_idx).width = column_width
+      @xls.column(col_idx).width = [column_width, 60].min
     end
     (0...@xls.row_count).each do |row_idx|
       row_height = 0

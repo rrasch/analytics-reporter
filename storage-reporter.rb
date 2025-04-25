@@ -9,6 +9,7 @@ require 'json'
 require 'mail'
 require 'mechanize'
 require 'optparse'
+require 'pp'
 require 'spreadsheet'
 require 'tempfile'
 require 'yaml'
@@ -186,7 +187,7 @@ Dir.mktmpdir(file_prefix) do |tmpdir|
   writer.add_row(['Year:', "FY#{config[:report_year]}"])
   writer.add_row(['Quarter:', config[:report_qtr]])
   writer.add_row_header(['Owner', 'Partner', 'Collection',
-                         'Collection ID', 'Title',
+                         'Collection ID', 'Title', 'Classification',
                          'Item count', 'Chg from prev qtr',
                          'Size in GB', 'Chg from prev qtr'])
 
@@ -194,7 +195,7 @@ Dir.mktmpdir(file_prefix) do |tmpdir|
 
   trends_writer.add_row(['DLTS collections quarterly report - storage trends'])
 
-  blanks = [""] * 3
+  blanks = [""] * 4
   year_labels = ['Year:', "FY#{config[:report_year]}"] + blanks
   qtr_labels  = ['Quarter:', config[:report_qtr]] + blanks
   end_qtr = config[:end]
@@ -209,7 +210,14 @@ Dir.mktmpdir(file_prefix) do |tmpdir|
   trends_writer.add_row(year_labels)
   trends_writer.add_row(qtr_labels)
 
-  labels = ['Owner', 'Partner', 'Collection', 'Collection ID', 'Title']
+  labels = [
+    'Owner',
+    'Partner',
+    'Collection',
+    'Collection ID',
+    'Title',
+    'Classification',
+  ]
   labels.concat(Array.new(num_labels, 'Size in GB'))
   trends_writer.add_row_header(labels)
 
@@ -221,6 +229,7 @@ Dir.mktmpdir(file_prefix) do |tmpdir|
       collection = partners[val[:provider]]['collections'][val[:collection]]
     end
     collection ||= {}
+    #pp collection
 
     #puts val
     data = []
@@ -229,6 +238,7 @@ Dir.mktmpdir(file_prefix) do |tmpdir|
     data.push(val[:collection])
     data.push(collection.fetch('display_code', ''))
     data.push(collection.fetch('name', ''))
+    data.push(collection.fetch('classification', ''))
     data.push(val[:num_files])
     data.push(calc_change(prev_totals, totals, key, :num_files))
     data.push(sprintf('%.2f', val[:size].to_f / gigabyte))
@@ -241,6 +251,7 @@ Dir.mktmpdir(file_prefix) do |tmpdir|
     data.push(val[:collection])
     data.push(collection.fetch('display_code', ''))
     data.push(collection.fetch('name', ''))
+    data.push(collection.fetch('classification', ''))
     end_qtr = config[:end]
     while end_qtr > first_report_date
       #puts end_qtr.financial_quarter
@@ -264,4 +275,3 @@ Dir.mktmpdir(file_prefix) do |tmpdir|
   Util.mail_and_copy(config, trends_writer.files, 'R* Storage Trends')
 
 end
-

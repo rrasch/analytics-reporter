@@ -39,6 +39,8 @@ import time
 import yaml
 
 
+IS_V3_DEPRECATED = True
+
 SCOPE = ['https://www.googleapis.com/auth/analytics.readonly']
 
 CLIENT_SECRET_FILE = 'client_secret.json'
@@ -132,7 +134,7 @@ def get_properties(account_list=None) -> dict:
             logger.debug(f"Property display name: {property_summary.display_name}\n")
             name = re.sub(r"\s+-\s+GA4$", "", property_summary.display_name)
             if re.search(r"^Finding Aids", name):
-                name = re.sub("\s+Hosted at New York University$", "", name)
+                name = re.sub(r"\s+Hosted at New York University$", "", name)
             properties[
                 f"{account_summary.display_name}:{name}"
             ] = property_summary.property
@@ -286,11 +288,12 @@ def parse_date(date):
 def get_analytics(account_list, skip_list, start_date, end_date, output_file):
     scope = ["https://www.googleapis.com/auth/analytics.readonly"]
 
-    # Authenticate and construct service.
-    service = get_service("analytics", "v3", scope, "client_secrets.json")
+    if not IS_V3_DEPRECATED:
+        # Authenticate and construct service.
+        service = get_service("analytics", "v3", scope, "client_secrets.json")
 
-    profile_ids = get_profile_ids(service, account_list)
-    logger.info("profile ids:\n" + pformat(profile_ids))
+        profile_ids = get_profile_ids(service, account_list)
+        logger.info("profile ids:\n" + pformat(profile_ids))
 
     properties = get_properties(account_list)
     logger.info("properties:\n" + pformat(properties))
@@ -299,14 +302,15 @@ def get_analytics(account_list, skip_list, start_date, end_date, output_file):
 
     total = pd.DataFrame()
 
-    for long_name, profile_id in profile_ids.items():
-        if long_name in skip_dict:
-            continue
-        results = get_results(service, profile_id, start_date, end_date)
-        if results.get("totalResults", 0) > 0:
-            df = create_dataframe(results)
-            logger.debug(df)
-            total = total.add(df, fill_value=0)
+    if not IS_V3_DEPRECATED:
+        for long_name, profile_id in profile_ids.items():
+            if long_name in skip_dict:
+                continue
+            results = get_results(service, profile_id, start_date, end_date)
+            if results.get("totalResults", 0) > 0:
+                df = create_dataframe(results)
+                logger.debug(df)
+                total = total.add(df, fill_value=0)
 
     for long_name, prop in properties.items():
         if long_name in skip_dict:

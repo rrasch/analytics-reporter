@@ -15,6 +15,8 @@ require_relative './config'
 require_relative './util'
 require_relative './writer'
 
+IS_V3_DEPRECATED = true
+
 BASEURL = "https://analytics.google.com/analytics/web/"
 
 ENV['GOOGLE_APPLICATION_CREDENTIALS'] = File.join(
@@ -283,12 +285,17 @@ end
 
 config = ReportConfig.get_config
 
-# Initialize the API
-ga_service = Google::Apis::AnalyticsV3::AnalyticsService.new
-ga_service.client_options.application_name = 'Analytics Reporter'
-ga_service.authorization = authorize
+if IS_V3_DEPRECATED
+  profiles = {}
+else
+  # Initialize the API
+  ga_service = Google::Apis::AnalyticsV3::AnalyticsService.new
+  ga_service.client_options.application_name = 'Analytics Reporter'
+  ga_service.authorization = authorize
 
-profiles = get_profiles(ga_service)
+  profiles = get_profiles(ga_service)
+end
+
 properties = get_properties
 
 file_prefix = 'analytics_report'
@@ -318,4 +325,3 @@ Dir.mktmpdir(file_prefix) do |tmpdir|
   Util.mail_and_copy(config, writer.files, 'Google Analytics')
 
 end
-

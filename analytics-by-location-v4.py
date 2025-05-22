@@ -4,7 +4,6 @@
 # https://stackoverflow.com/questions/59840150/google-analytics-data-to-pandas-dataframe
 
 from apiclient.discovery import build
-from datetime import datetime, timedelta
 from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -21,7 +20,7 @@ from google.analytics.data_v1beta.types import (
 from oauth2client import client
 from oauth2client import file
 from oauth2client import tools
-from pprint import pprint, pformat
+from pprint import pformat
 from subprocess import PIPE, Popen
 import argparse
 import dateparser
@@ -35,7 +34,6 @@ import plot_static_map as psm
 import re
 import smtplib
 import sys
-import time
 import yaml
 
 
@@ -281,8 +279,12 @@ def create_dataframe(results):
     return df
 
 
-def parse_date(date):
-    return dateparser.parse(date).strftime('%Y-%m-%d')
+def parse_reformat_date(date_str):
+    return format_date(dateparser.parse(date_str))
+
+
+def format_date(date):
+    return date.strftime('%Y-%m-%d')
 
 
 def get_analytics(account_list, skip_list, start_date, end_date, output_file):
@@ -390,6 +392,16 @@ def sendmail(
         logger.error(f"Could not send mail: {e}")
 
 
+def validate_qtr(qtr):
+    match = re.search(r"^Q([1-4])/(202[0-9])$", qtr)
+    if not match:
+        raise argparse.ArgumentTypeError(
+            f"Invalid qtr '{qtr}', must be of form Q{1,2,3,4}/YYYY, e.g Q1/2025"
+        )
+    fiscal_qtr = fy.FiscalQuarter(int(match.group(2)), int(match.group(1)))
+    return fiscal_qtr
+
+
 def main():
     pd.set_option('display.max_columns', None)
     pd.set_option('display.max_rows', None)
@@ -404,8 +416,8 @@ def main():
 
     fy.setup_fiscal_calendar(start_month=9)
     now = fy.FiscalDateTime.now()
-    start_date = now.prev_fiscal_quarter.start.strftime('%Y-%m-%d')
-    end_date = now.prev_fiscal_quarter.end.strftime('%Y-%m-%d')
+    start_date = format_date(now.prev_fiscal_quarter.start)
+    end_date = format_date(now.prev_fiscal_quarter.end)
 
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -415,6 +427,9 @@ def main():
     parser.add_argument("output_file", metavar="OUTPUT_FILE",
         nargs="?",
         help="Output CSV file")
+    parser.add_argument("-f", "--fiscal-qtr",
+        type=validate_qtr,
+        help="Fiscal Quarter, e.g. Q1/2025; Overrides start/end date")
     parser.add_argument("-s", "--start-date",
         default=start_date,
         help="Start date")
@@ -431,11 +446,14 @@ def main():
     logger.debug(f"config: {pformat(config)}")
     logger.debug(f"command line args: {pformat(args)}")
 
-    if args.start_date != start_date:
-        start_date = parse_date(args.start_date)
-
-    if args.end_date != end_date:
-        end_date = parse_date(args.end_date)
+    if args.fiscal_qtr:
+        start_date = format_date(args.fiscal_qtr.start)
+        end_date = format_date(args.fiscal_qtr.end)
+    else:
+        if args.start_date != start_date:
+            start_date = parse_reformat_date(args.start_date)
+        if args.end_date != end_date:
+            end_date = parse_reformat_date(args.end_date)
 
     if args.output_file:
         output_file = args.output_file
@@ -457,8 +475,7 @@ def main():
         print(f"Output file {output_file} already exists.")
     else:
         if not (os.path.isdir(output_dir) and os.access(output_dir, os.W_OK)):
-            print(f"{output_dir} is not a writable directory.")
-            exit(1)
+            sys.exit(f"{output_dir} is not a writable directory.")
         get_analytics(
             args.account_list,
             config["skip_list"],

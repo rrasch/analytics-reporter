@@ -9,13 +9,15 @@ umask 022
 cd $SCRIPT_HOME
 git pull
 
-source "$HOME/.rvm/scripts/rvm"
+if [ -f "$HOME/.rvm/scripts/rvm" ]; then
+	source "$HOME/.rvm/scripts/rvm"
+fi
 
-./storage-reporter.rb
+./storage-reporter.rb "$@"
 
 sleep 5
 
-./analytics-reporter.rb
+./analytics-reporter.rb "$@"
 
 # unset rvm environment
 { type -t __rvm_unload >/dev/null; } && __rvm_unload
@@ -29,6 +31,6 @@ sleep 5
 
 source "$HOME/venv/analytics/bin/activate"
 
-./analytics-by-location-v4.py
+./analytics-by-location-v4.py "$@"
 
 deactivate

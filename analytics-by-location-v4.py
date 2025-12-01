@@ -4,6 +4,7 @@
 # https://stackoverflow.com/questions/59840150/google-analytics-data-to-pandas-dataframe
 
 from apiclient.discovery import build
+from box_links import upload_and_get_link
 from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -22,6 +23,7 @@ from oauth2client import file
 from oauth2client import tools
 from pprint import pformat
 from subprocess import PIPE, Popen
+from typing import Dict, List, Optional
 import argparse
 import dateparser
 import fiscalyear as fy
@@ -120,7 +122,7 @@ def print_run_report_response(response):
     # [END analyticsdata_print_run_report_response_rows]
 
 
-def get_properties(account_list=None) -> dict:
+def get_properties(account_list: Optional[List[str]] = None) -> Dict[str, str]:
     client = AnalyticsAdminServiceClient()
     results = client.list_account_summaries()
     properties = {}
@@ -327,9 +329,11 @@ def get_analytics(account_list, skip_list, start_date, end_date, output_file):
             logger.debug(df)
             total = total.add(df, fill_value=0)
 
-    total.index = [conv_iso_2_to_3(i) for i in total.index]
+    total.index = pd.Index([conv_iso_2_to_3(i) for i in total.index])
     total.index.name = "iso3"
-    total.columns = [re.sub(r"^ga:", "", col) for col in total.columns]
+    total.columns = pd.Index(
+        [re.sub(r"^ga:", "", col) for col in total.columns]
+    )
     set_int(total)
 
     total.to_csv(output_file)
@@ -358,20 +362,23 @@ def sendmail(
     body = subject + "\n\n"
 
     parts = []
-    for attachment in attachments:
-        basename = os.path.basename(attachment)
+    for filename, link in attachments:
+        basename = os.path.basename(filename)
         ishtml = basename.endswith("html")
+
+        if not link:
+            link = f"{url}/{basename}"
 
         if ishtml:
             body += "Interactive Map:\n"
         else:
             body += "Static Map:\n"
-        body += f"{url}/{basename}\n\n"
+        body += f"{link}\n\n"
 
         if ishtml:
             continue
 
-        with open(attachment, "rb") as f:
+        with open(filename, "rb") as f:
             part = MIMEApplication(f.read(), Name=basename)
         part["Content-Disposition"] = f"attachment; filename={basename}"
         parts.append(part)
@@ -441,7 +448,9 @@ def main():
         help="Comma separated list of ga accounts")
     args = parser.parse_args()
 
-    logger.setLevel(logging.DEBUG if args.debug else logging.INFO)
+    level = logging.DEBUG if args.debug else logging.INFO
+    logger.setLevel(level)
+    logging.getLogger("box_links").setLevel(level)
 
     logger.debug(f"config: {pformat(config)}")
     logger.debug(f"command line args: {pformat(args)}")
@@ -492,13 +501,22 @@ def main():
     if not os.path.isfile(img_file):
         psm.plot_static("pageviews", output_file, img_file)
 
+    attach = []
+    for filepath in (html_file, img_file):
+        link = None
+        try:
+            link = upload_and_get_link(filepath, config["box_dir"])
+        except:
+            logging.exception("Upload/link generation failed")
+        attach.append((filepath, link))
+
     sendmail(
         config["mailfrom"],
         config["mailto"],
         start_date,
         end_date,
         config["reports_url"],
-        [html_file, img_file],
+        attach,
     )
 
 

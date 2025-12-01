@@ -24,7 +24,7 @@ def human_format(num):
     )
 
 
-def plot_static(metric, csv_file, img_file):
+def plot_static(metric: str, csv_file: str, img_file: str) -> None:
     try:
         date_range = util.get_date_range(csv_file)
     except ValueError as e:
@@ -167,11 +167,9 @@ def plot_static(metric, csv_file, img_file):
 
 
 def main():
-    pd.set_option(
-        "display.max_columns", None,
-        "display.max_rows", None,
-        "display.width", 0
-    )
+    pd.set_option("display.max_columns", None)
+    pd.set_option("display.max_rows", None)
+    pd.set_option("display.width", 0)
 
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,

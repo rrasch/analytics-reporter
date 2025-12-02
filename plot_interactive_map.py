@@ -42,25 +42,20 @@ def plot_interactive(metric, csv_file, html_file):
     date_range = get_date_range(csv_file)
 
     if not html_file:
-        html_file = f"{args.metric}.html"
+        html_file = f"{metric}.html"
 
     fy.setup_fiscal_calendar(start_month=9)
 
-    pd.set_option(
-        "display.max_columns",
-        None,
-        "display.max_rows",
-        None,
-        "display.width",
-        0,
-    )
+    pd.set_option("display.max_columns", None)
+    pd.set_option("display.max_rows", None)
+    pd.set_option("display.width", 0)
 
     sessions = pd.read_csv(csv_file, index_col="iso3")
 
-    countries = [
+    countries_list = [
         [country.alpha_3, country.name] for country in pycountry.countries
     ]
-    countries = pd.DataFrame(countries, columns=["iso3", "name"])
+    countries = pd.DataFrame(countries_list, columns=["iso3", "name"])
     countries = countries.set_index("iso3")
 
     df = sessions.join(countries, how="outer")

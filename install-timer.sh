@@ -10,12 +10,14 @@ APP_HOME=$(dirname -- "$(readlink -f -- "$0")")
 
 export SYSTEMD_PAGER=""
 
+umask 022
+
 set +e
-$SYSTEMCTL stop analytics.timer
-$SYSTEMCTL disable analytics.service analytics.timer
+$SYSTEMCTL stop analytics.timer 2>/dev/null
+$SYSTEMCTL disable analytics.service analytics.timer 2>/dev/null
 set -e
 
-install -m 0644 $APP_HOME/analytics.{timer,service} $SYSTEMD_DIR
+install -m 0644 -D -t $SYSTEMD_DIR $APP_HOME/analytics.{timer,service}
 
 perl -pi -e "s,<APP_HOME>,$APP_HOME," $SYSTEMD_DIR/analytics.service
 perl -pi -e "s,<LOGDIR>,$HOME," $SYSTEMD_DIR/analytics.service

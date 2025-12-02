@@ -4,7 +4,7 @@
 # https://stackoverflow.com/questions/59840150/google-analytics-data-to-pandas-dataframe
 
 from apiclient.discovery import build
-from box_links import upload_and_get_link
+from box_links import upload_and_get_link as up_link
 from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -501,14 +501,21 @@ def main():
     if not os.path.isfile(img_file):
         psm.plot_static("pageviews", output_file, img_file)
 
-    attach = []
-    for filepath in (html_file, img_file):
-        link = None
+    attach = None
+    file_list = [html_file, img_file]
+
+    if "box_dir" in config:
         try:
-            link = upload_and_get_link(filepath, config["box_dir"])
-        except:
-            logging.exception("Upload/link generation failed")
-        attach.append((filepath, link))
+            attach = [
+                (file, up_link(file, config["box_dir"])) for file in file_list
+            ]
+        except Exception:
+            logger.exception("Upload/link generation failed")
+    else:
+        logger.warning('"box_dir" missing from config; skipping uploads.')
+
+    if not attach:
+        attach = [(file, "") for file in file_list]
 
     sendmail(
         config["mailfrom"],

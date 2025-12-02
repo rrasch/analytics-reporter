@@ -7,6 +7,5 @@ After=network.target
 
 [Service]
 ExecStart=<APP_HOME>/run-analytics.sh
-
-[Install]
-WantedBy=default.target
+StandardOutput=append:<LOGDIR>/analytics.log
+StandardError=append:<LOGDIR>/analytics.log

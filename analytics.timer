@@ -6,7 +6,7 @@ Description=Timer that periodically triggers analytics.service
 [Timer]
 # Every quarter at 10am
 OnCalendar=*-03,06,09,12-01 10:00:00
-Persistent=false
+Persistent=true
 
 [Install]
-WantedBy=default.target
+WantedBy=timers.target

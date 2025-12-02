@@ -126,6 +126,8 @@ end
 
 config = ReportConfig.get_config
 
+Util.check_output_exists(config, ['storage', 'storage_trends'])
+
 install_dir = File.join(Dir.home, "storage-reports")
 
 if config[:use_web]

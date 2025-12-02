@@ -285,6 +285,8 @@ end
 
 config = ReportConfig.get_config
 
+Util.check_output_exists(config, ['analytics'])
+
 if IS_V3_DEPRECATED
   profiles = {}
 else

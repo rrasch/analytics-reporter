@@ -85,5 +85,30 @@ class Util
     return totals
   end
 
-end
 
+  def self.gen_output_name(config, prefix, ext)
+    name = File.join(config[:output_dir],
+                     "#{prefix}_report_FY#{config[:report_year]}_" \
+                     "#{config[:report_qtr]}.#{ext}")
+  end
+
+
+  def self.check_output_exists(config, prefix_list)
+    existing = []
+    prefix_list.each do |prefix|
+      ['csv', 'xls'].each do |ext|
+        outfile = gen_output_name(config, prefix, ext)
+        if File.exist?(outfile)
+          existing << outfile
+        end
+      end
+    end
+
+    unless existing.empty?
+      warn "The following output files already exist."
+      existing.each { |f| warn "  #{f}" }
+      exit 1
+    end
+  end
+
+end

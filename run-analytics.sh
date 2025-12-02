@@ -6,6 +6,13 @@ SCRIPT_HOME=$HOME/work/analytics-reporter
 
 umask 022
 
+. /etc/os-release
+
+if [ "$ID" = "ubuntu" ]; then
+    export SSL_CERT_FILE="/etc/ssl/certs/ca-certificates.crt"
+    export SSL_CERT_DIR="/etc/ssl/certs"
+fi
+
 cd $SCRIPT_HOME
 git pull
 

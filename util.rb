@@ -32,13 +32,23 @@ class Util
       FileUtils.cp(files, config[:output_dir])
     end
 
+    if config.key?(:box_dir)
+      script_dir = File.expand_path(File.dirname(__FILE__))
+      box_script = File.join(script_dir, "upload_to_box.py")
+      files.each do |file|
+        do_cmd("python3 '#{box_script}' '#{file}' " \
+               "'#{config[:box_dir]}'", debug: true)
+      end
+    end
+
   end
 
 
-  def self.do_cmd(cmd)
+  def self.do_cmd(cmd, debug = false)
     output, status = Open3.capture2e(cmd)
     success = status.exitstatus.zero?
     raise "#{cmd} exited unsuccessfully: #{output}" if !success
+    puts "#{cmd} output: #{output}" if debug
   end
 
 

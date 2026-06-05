@@ -14,6 +14,7 @@ require 'spreadsheet'
 require 'tempfile'
 require 'yaml'
 require_relative './config'
+require_relative './rsbe'
 require_relative './util'
 require_relative './writer'
 
@@ -94,23 +95,25 @@ def calc_change(t1, t2, k1, k2)
 end
 
 
-def get_partners(config)
-  agent = Mechanize.new
-  agent.add_auth(config[:rsbe_domain],
-                 config[:rsbe_user], config[:rsbe_pass])
+def get_partners
+  app_home = File.dirname(File.expand_path(__FILE__))
+  conf = RSBE::Config.new(File.join(app_home, 'rsbe.yaml'))
+  client = RSBE::APIClient.new(conf)
+  client.login
 
-  api_url = "#{config[:rsbe_domain]}/api/v0"
+  api_path = "/api/v0"
 
-  owners_url = "#{api_url}/owners"
-  owners_list = JSON.parse(agent.get(owners_url).content)
+  owners_path = "#{api_path}/owners"
+  owners_list = JSON.parse(client.get_body(owners_path))
   owners = owners_list.map { |h| [h['id'], h] }.to_h
 
   partners = {}
-  partners_url = "#{api_url}/partners"
-  partners_list = JSON.parse(agent.get(partners_url).content)
+  partners_path = "#{api_path}/partners"
+  partners_list = JSON.parse(client.get_body(partners_path))
+
   partners_list.each do |partner|
     collections_url = "#{partner['url']}/colls"
-    collections_list = JSON.parse(agent.get(collections_url).content)
+    collections_list = JSON.parse(client.get_body(collections_url))
     collections = {}
     collections_list.each do |coll|
       coll['owner_name'] = owners[coll['owner_id']]['name']
@@ -119,7 +122,6 @@ def get_partners(config)
     partner['collections'] = collections
     partners[partner['code']] = partner
   end
-  #pp partners
   return partners
 end
 
@@ -174,7 +176,7 @@ end
 # puts reports_by_qtr
 
 if config[:use_web]
-  partners = get_partners(config)
+  partners = get_partners()
 else
   partners = {}
 end
